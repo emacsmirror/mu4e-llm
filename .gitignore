@@ -1,0 +1,19 @@
+# Byte-compiled files
+*.elc
+
+# Package archives
+*.tar
+
+# Backup files
+*~
+\#*\#
+.\#*
+
+# Auto-save files
+.auto-save-list
+
+# Flycheck temp files
+flycheck_*.el
+
+# Directory for straight.el build artifacts
+/build/
