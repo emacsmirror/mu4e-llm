@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2025 Dr. Sandeep Sadanandan
 
-;; Author: Dr. Sandeep Sadanandan <sands@kotaico.de>
+;; Author: Dr. Sandeep Sadanandan <sillyfellow@whybenormal.org>
 ;; URL: https://github.com/sillyfellow/mu4e-llm
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "28.1") (llm "0.17"))
