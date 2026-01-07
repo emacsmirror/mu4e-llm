@@ -2,6 +2,33 @@
 
 AI-powered email assistance for mu4e using LLM providers via [llm.el](https://github.com/ahyatt/llm).
 
+```mermaid
+flowchart LR
+    subgraph mu4e["📧 mu4e"]
+        email[View Email]
+    end
+
+    subgraph llm["🤖 mu4e-llm"]
+        summarize[Summarize]
+        reply[Smart Reply]
+        translate[Translate]
+    end
+
+    subgraph providers["☁️ LLM Providers"]
+        openai[OpenAI]
+        claude[Claude]
+        ollama[Ollama]
+    end
+
+    email --> summarize
+    email --> reply
+    email --> translate
+
+    summarize --> providers
+    reply --> providers
+    translate --> providers
+```
+
 ## Features
 
 - **Thread Summarization**: Get detailed or executive summaries of email threads
@@ -71,6 +98,56 @@ AI-powered email assistance for mu4e using LLM providers via [llm.el](https://gi
 | `C-c C-f` | Finalize | Accept draft and open in compose |
 | `C-c C-k` | Cancel | Discard draft |
 
+### Workflow Diagrams
+
+#### Smart Reply Workflow
+
+```mermaid
+flowchart TD
+    A["📧 View email in mu4e"] --> B["C-c a e r<br/>Generate reply"]
+    B --> C["*mu4e-llm-draft* buffer<br/>shows AI-generated reply"]
+
+    C --> D{"Edit & Refine"}
+
+    D -->|"C-c C-r"| E["Custom refinement"]
+    D -->|"C-c C-s"| F["Make shorter"]
+    D -->|"C-c C-p"| G["Make more polite"]
+
+    E --> C
+    F --> C
+    G --> C
+
+    D -->|"C-c C-f"| H["✉️ Open in mu4e compose<br/>with correct signature"]
+    D -->|"C-c C-k"| I["❌ Cancel"]
+```
+
+#### Command Map
+
+```mermaid
+flowchart TB
+    subgraph prefix["C-c a e (mu4e-llm prefix)"]
+        direction TB
+        s["s → Summarize thread"]
+        S["S → Executive summary"]
+        r["r → Smart reply"]
+        R["R → Refine draft"]
+        n["n → New email with AI"]
+        t["t → Translate message"]
+        T["T → Translate thread"]
+        a["a → Abort operation"]
+        q["? → Help"]
+    end
+
+    subgraph draft["Draft buffer (C-c ...)"]
+        direction TB
+        cr["C-r → Refine"]
+        cs["C-s → Shorten"]
+        cp["C-p → Polite"]
+        cf["C-f → Finalize"]
+        ck["C-k → Cancel"]
+    end
+```
+
 ## Configuration
 
 All options are customizable via `M-x customize-group RET mu4e-llm RET`.
@@ -78,11 +155,12 @@ All options are customizable via `M-x customize-group RET mu4e-llm RET`.
 ### LLM Provider Settings
 
 ```elisp
-;; Use a specific provider (overrides global provider)
+;; Use a specific provider (overrides fallback)
 (setq mu4e-llm-provider (make-llm-openai :key "your-api-key"))
 
-;; Or leave nil to use my/llm-current-provider from aissistance.el
+;; Or leave nil and use fallback variable (see Provider Setup)
 (setq mu4e-llm-provider nil)
+(setq mu4e-llm-provider-fallback-variable 'my/llm-provider)
 
 ;; Response creativity (0.0 = focused, 1.0 = creative)
 (setq mu4e-llm-temperature 0.7)
@@ -142,13 +220,15 @@ All options are customizable via `M-x customize-group RET mu4e-llm RET`.
 
 ## Provider Setup
 
-### Using with aissistance.el (Recommended)
+### Using a Fallback Variable (Recommended)
 
-If you use aissistance.el, mu4e-llm automatically uses your configured provider:
+If you have a global LLM provider variable, point mu4e-llm to it:
 
 ```elisp
-;; Switch providers with C-c a P
-;; mu4e-llm will use the selected provider automatically
+;; If you have a global provider variable like my/llm-provider:
+(setq mu4e-llm-provider-fallback-variable 'my/llm-provider)
+
+;; Now changing my/llm-provider automatically affects mu4e-llm
 ```
 
 ### Direct Provider Configuration
@@ -181,7 +261,7 @@ Without org-msg, drafts are plain text with org-mode formatting that you can cop
 
 Either:
 1. Set `mu4e-llm-provider` to an llm.el provider object
-2. Use aissistance.el and select a provider with `C-c a P`
+2. Set `mu4e-llm-provider-fallback-variable` to point to your global provider variable
 
 ### Summaries are stale
 
