@@ -1,5 +1,9 @@
 # mu4e-llm
 
+[![CI](https://github.com/sillyfellow/mu4e-llm/actions/workflows/test.yml/badge.svg)](https://github.com/sillyfellow/mu4e-llm/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Emacs](https://img.shields.io/badge/Emacs-28.1+-purple.svg)](https://www.gnu.org/software/emacs/)
+
 AI-powered email assistance for mu4e using LLM providers via [llm.el](https://github.com/ahyatt/llm).
 
 ```mermaid
