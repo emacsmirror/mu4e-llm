@@ -31,92 +31,11 @@
 (declare-function message-goto-body "message")
 (defvar mu4e-contexts)
 
-;;; --- Prompt Templates ---
-
-(defcustom mu4e-llm-draft-persona-descriptions
-  '((professional . "Write in a professional, business-appropriate tone. Be courteous and clear.")
-    (friendly . "Write in a warm, friendly tone while remaining professional. Be personable.")
-    (formal . "Write in a formal, highly professional tone suitable for executive communication.")
-    (concise . "Write as briefly as possible while being clear. Minimize pleasantries."))
-  "Alist mapping persona symbols to their prompt descriptions.
-Each entry is (PERSONA . DESCRIPTION) where PERSONA is a symbol
-and DESCRIPTION is the text inserted into prompts."
-  :type '(alist :key-type symbol :value-type string)
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-draft-reply-prompt
-  "You are drafting an email reply for %s <%s>.
-
-%s
-
-Based on the email thread below, draft a reply that addresses the key points.
-Use org-mode syntax for formatting (this will be used with org-msg):
-- Use *bold* for emphasis
-- Use /italic/ for subtle emphasis
-- Use bullet lists with - for multiple points
-- Use [[url][text]] for links
-
-Do NOT include email headers (To, From, Subject) - just the body text.
-Do NOT include a signature - that will be added automatically.
-Start with an appropriate greeting.
-
-EMAIL THREAD:
-%s
-
-%s"
-  "Prompt template for generating draft replies.
-Placeholders (in order):
-  1. user-name - sender's name
-  2. user-email - sender's email
-  3. persona - persona description text
-  4. thread-context - formatted email thread
-  5. instructions - optional user instructions"
-  :type 'string
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-draft-refine-prompt
-  "Revise the following email draft according to this instruction: %s
-
-Keep the same basic structure and points, but adjust as requested.
-Use org-mode syntax for formatting.
-Do NOT include email headers or signature.
-
-CURRENT DRAFT:
-%s"
-  "Prompt template for refining drafts.
-Placeholders (in order):
-  1. instruction - the refinement instruction
-  2. current-draft - the draft text to refine"
-  :type 'string
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-draft-compose-prompt
-  "You are composing a new email for %s <%s>.
-
-%s
-
-Write an email based on these instructions: %s
-
-%s
-
-Use org-mode syntax for formatting (this will be used with org-msg):
-- Use *bold* for emphasis
-- Use /italic/ for subtle emphasis
-- Use bullet lists with - for multiple points
-- Use [[url][text]] for links
-
-Do NOT include email headers (To, From, Subject) - just the body text.
-Do NOT include a signature - that will be added automatically.
-Start with an appropriate greeting."
-  "Prompt template for composing new emails.
-Placeholders (in order):
-  1. user-name - sender's name
-  2. user-email - sender's email
-  3. persona - persona description text
-  4. instructions - what to write about
-  5. recipient-context - optional recipient info"
-  :type 'string
-  :group 'mu4e-llm)
+;; Variables from mu4e-llm-config (suppress byte-compile warnings)
+(defvar mu4e-llm-draft-persona-descriptions)
+(defvar mu4e-llm-draft-reply-prompt)
+(defvar mu4e-llm-draft-refine-prompt)
+(defvar mu4e-llm-draft-compose-prompt)
 
 ;;; --- Context Matching ---
 

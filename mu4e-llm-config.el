@@ -92,6 +92,91 @@ This affects the tone and formality of generated replies."
   :type 'boolean
   :group 'mu4e-llm)
 
+(defcustom mu4e-llm-draft-persona-descriptions
+  '((professional . "Write in a professional, business-appropriate tone. Be courteous and clear.")
+    (friendly . "Write in a warm, friendly tone while remaining professional. Be personable.")
+    (formal . "Write in a formal, highly professional tone suitable for executive communication.")
+    (concise . "Write as briefly as possible while being clear. Minimize pleasantries."))
+  "Alist mapping persona symbols to their prompt descriptions.
+Each entry is (PERSONA . DESCRIPTION) where PERSONA is a symbol
+and DESCRIPTION is the text inserted into prompts."
+  :type '(alist :key-type symbol :value-type string)
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-reply-prompt
+  "You are drafting an email reply for %s <%s>.
+
+%s
+
+Based on the email thread below, draft a reply that addresses the key points.
+Use org-mode syntax for formatting (this will be used with org-msg):
+- Use *bold* for emphasis
+- Use /italic/ for subtle emphasis
+- Use bullet lists with - for multiple points
+- Use [[url][text]] for links
+
+Do NOT include email headers (To, From, Subject) - just the body text.
+Do NOT include a signature - that will be added automatically.
+Start with an appropriate greeting.
+
+EMAIL THREAD:
+%s
+
+%s"
+  "Prompt template for generating draft replies.
+Placeholders (in order):
+  1. user-name - sender's name
+  2. user-email - sender's email
+  3. persona - persona description text
+  4. thread-context - formatted email thread
+  5. instructions - optional user instructions"
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-refine-prompt
+  "Revise the following email draft according to this instruction: %s
+
+Keep the same basic structure and points, but adjust as requested.
+Use org-mode syntax for formatting.
+Do NOT include email headers or signature.
+
+CURRENT DRAFT:
+%s"
+  "Prompt template for refining drafts.
+Placeholders (in order):
+  1. instruction - the refinement instruction
+  2. current-draft - the draft text to refine"
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-compose-prompt
+  "You are composing a new email for %s <%s>.
+
+%s
+
+Write an email based on these instructions: %s
+
+%s
+
+Use org-mode syntax for formatting (this will be used with org-msg):
+- Use *bold* for emphasis
+- Use /italic/ for subtle emphasis
+- Use bullet lists with - for multiple points
+- Use [[url][text]] for links
+
+Do NOT include email headers (To, From, Subject) - just the body text.
+Do NOT include a signature - that will be added automatically.
+Start with an appropriate greeting."
+  "Prompt template for composing new emails.
+Placeholders (in order):
+  1. user-name - sender's name
+  2. user-email - sender's email
+  3. persona - persona description text
+  4. instructions - what to write about
+  5. recipient-context - optional recipient info"
+  :type 'string
+  :group 'mu4e-llm)
+
 ;;; --- Translation Settings ---
 
 (defcustom mu4e-llm-languages
@@ -108,6 +193,87 @@ Alist of (DISPLAY-NAME . CODE) pairs."
 
 (defcustom mu4e-llm-default-target-language "en"
   "Default target language for translation."
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-translate-message-prompt
+  "Translate the following email to %s.
+Preserve the formatting and structure.
+Keep names, email addresses, and technical terms as-is.
+Do not add any commentary or notes.
+
+EMAIL:
+From: %s
+Subject: %s
+
+%s"
+  "Prompt template for message translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. from - the sender's name/email
+  3. subject - the email subject
+  4. body - the email body text"
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-translate-thread-prompt
+  "Translate the following email thread to %s.
+Preserve the formatting and structure of each message.
+Keep names, email addresses, and technical terms as-is.
+Maintain the chronological order and clear separation between messages.
+Do not add any commentary or notes.
+
+EMAIL THREAD:
+%s"
+  "Prompt template for thread translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. thread-context - the formatted email thread"
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-translate-text-prompt
+  "Translate the following text to %s.
+Preserve the formatting.
+Do not add any commentary or notes.
+
+TEXT:
+%s"
+  "Prompt template for text/region translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. text - the text to translate"
+  :type 'string
+  :group 'mu4e-llm)
+
+;;; --- Summary Settings ---
+
+(defcustom mu4e-llm-summary-standard-prompt
+  "Summarize the following email thread concisely (around 200 words).
+
+Include:
+- Main topic and purpose of the discussion
+- Key points and decisions made
+- Action items or requests (if any)
+- Current status or next steps needed
+
+Use bullet points for clarity. Focus on what's most important for someone who needs to quickly understand this thread.
+
+EMAIL THREAD:
+%s"
+  "Prompt template for standard thread summaries.
+The %s placeholder is replaced with the formatted email thread."
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-summary-executive-prompt
+  "Provide a brief executive summary of this email thread in 2-3 sentences.
+Focus only on the critical information: what is this about and what action (if any) is needed.
+
+EMAIL THREAD:
+%s"
+  "Prompt template for executive summaries.
+The %s placeholder is replaced with the formatted email thread."
   :type 'string
   :group 'mu4e-llm)
 

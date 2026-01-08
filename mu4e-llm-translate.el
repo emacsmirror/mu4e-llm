@@ -20,57 +20,10 @@
 ;; Forward declarations
 (declare-function mu4e-message-at-point "mu4e-message")
 
-;;; --- Prompt Templates ---
-
-(defcustom mu4e-llm-translate-message-prompt
-  "Translate the following email to %s.
-Preserve the formatting and structure.
-Keep names, email addresses, and technical terms as-is.
-Do not add any commentary or notes.
-
-EMAIL:
-From: %s
-Subject: %s
-
-%s"
-  "Prompt template for message translation.
-Placeholders (in order):
-  1. target-language - the language to translate to
-  2. from - the sender's name/email
-  3. subject - the email subject
-  4. body - the email body text"
-  :type 'string
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-translate-thread-prompt
-  "Translate the following email thread to %s.
-Preserve the formatting and structure of each message.
-Keep names, email addresses, and technical terms as-is.
-Maintain the chronological order and clear separation between messages.
-Do not add any commentary or notes.
-
-EMAIL THREAD:
-%s"
-  "Prompt template for thread translation.
-Placeholders (in order):
-  1. target-language - the language to translate to
-  2. thread-context - the formatted email thread"
-  :type 'string
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-translate-text-prompt
-  "Translate the following text to %s.
-Preserve the formatting.
-Do not add any commentary or notes.
-
-TEXT:
-%s"
-  "Prompt template for text/region translation.
-Placeholders (in order):
-  1. target-language - the language to translate to
-  2. text - the text to translate"
-  :type 'string
-  :group 'mu4e-llm)
+;; Variables from mu4e-llm-config (suppress byte-compile warnings)
+(defvar mu4e-llm-translate-message-prompt)
+(defvar mu4e-llm-translate-thread-prompt)
+(defvar mu4e-llm-translate-text-prompt)
 
 ;;; --- Translation Buffer Mode ---
 

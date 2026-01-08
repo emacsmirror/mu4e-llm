@@ -21,36 +21,9 @@
 (declare-function mu4e-message-at-point "mu4e-message")
 (declare-function mu4e-llm-draft-reply "mu4e-llm-draft")
 
-;;; --- Prompt Templates ---
-
-(defcustom mu4e-llm-summary-standard-prompt
-  "Summarize the following email thread concisely (around 200 words).
-
-Include:
-- Main topic and purpose of the discussion
-- Key points and decisions made
-- Action items or requests (if any)
-- Current status or next steps needed
-
-Use bullet points for clarity. Focus on what's most important for someone who needs to quickly understand this thread.
-
-EMAIL THREAD:
-%s"
-  "Prompt template for standard thread summaries.
-The %s placeholder is replaced with the formatted email thread."
-  :type 'string
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-summary-executive-prompt
-  "Provide a brief executive summary of this email thread in 2-3 sentences.
-Focus only on the critical information: what is this about and what action (if any) is needed.
-
-EMAIL THREAD:
-%s"
-  "Prompt template for executive summaries.
-The %s placeholder is replaced with the formatted email thread."
-  :type 'string
-  :group 'mu4e-llm)
+;; Variables from mu4e-llm-config (suppress byte-compile warnings)
+(defvar mu4e-llm-summary-standard-prompt)
+(defvar mu4e-llm-summary-executive-prompt)
 
 ;;; --- Summary Buffer Mode ---
 
