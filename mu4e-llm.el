@@ -34,7 +34,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-(eval-when-compile (require 'cl-macs))  ; for cl-struct-slot-value
+(declare-function cl-struct-slot-value "cl-macs" (struct-type slot-name inst))
 (require 'mu4e-llm-config)
 (require 'mu4e-llm-core)
 
@@ -123,6 +123,12 @@ Current provider: %s"))
 
 ;;; --- Setup ---
 
+(defun mu4e-llm--setup-keybindings ()
+  "Set up keybindings in current mu4e buffer.
+Called from mode hooks to ensure keymaps are available."
+  (when (and mu4e-llm-keymap-prefix (current-local-map))
+    (define-key (current-local-map) (kbd mu4e-llm-keymap-prefix) mu4e-llm-map)))
+
 ;;;###autoload
 (defun mu4e-llm-setup ()
   "Initialize mu4e-llm with keybindings in mu4e modes.
@@ -131,23 +137,17 @@ If set to nil, no automatic keybindings are created."
   (interactive)
   (when mu4e-llm-keymap-prefix
     ;; Integrate with existing ai-commands-prefix-map if available
-    ;; and the prefix starts with "C-c a "
-    (if (and (boundp 'ai-commands-prefix-map)
-             (string-match "^C-c a \\(.+\\)$" mu4e-llm-keymap-prefix))
-        (let ((suffix (match-string 1 mu4e-llm-keymap-prefix)))
-          (define-key (symbol-value 'ai-commands-prefix-map) (kbd suffix) mu4e-llm-map))
-      ;; Otherwise bind directly in mu4e modes
-      (with-eval-after-load 'mu4e
-        (when (boundp 'mu4e-headers-mode-map)
-          (define-key mu4e-headers-mode-map (kbd mu4e-llm-keymap-prefix) mu4e-llm-map))
-        (when (boundp 'mu4e-view-mode-map)
-          (define-key mu4e-view-mode-map (kbd mu4e-llm-keymap-prefix) mu4e-llm-map))))
-    ;; Also set in the minor mode map
+    (when (and (boundp 'ai-commands-prefix-map)
+               (string-match "^C-c a \\(.+\\)$" mu4e-llm-keymap-prefix))
+      (let ((suffix (match-string 1 mu4e-llm-keymap-prefix)))
+        (define-key (symbol-value 'ai-commands-prefix-map) (kbd suffix) mu4e-llm-map)))
+    ;; Set in the minor mode map
     (define-key mu4e-llm-mode-map (kbd mu4e-llm-keymap-prefix) mu4e-llm-map))
-  ;; Add hooks for mu4e modes
-  (with-eval-after-load 'mu4e
-    (add-hook 'mu4e-headers-mode-hook #'mu4e-llm-mode)
-    (add-hook 'mu4e-view-mode-hook #'mu4e-llm-mode))
+  ;; Add hooks for mu4e modes (safe to call before mu4e loads)
+  (add-hook 'mu4e-headers-mode-hook #'mu4e-llm-mode)
+  (add-hook 'mu4e-view-mode-hook #'mu4e-llm-mode)
+  (add-hook 'mu4e-headers-mode-hook #'mu4e-llm--setup-keybindings)
+  (add-hook 'mu4e-view-mode-hook #'mu4e-llm--setup-keybindings)
   (message "mu4e-llm initialized. Use %s for AI commands."
            (or mu4e-llm-keymap-prefix "M-x mu4e-llm-*")))
 
