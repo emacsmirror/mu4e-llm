@@ -22,7 +22,7 @@
 
 ;;; --- Prompt Templates ---
 
-(defconst mu4e-llm-translate--message-prompt
+(defcustom mu4e-llm-translate-message-prompt
   "Translate the following email to %s.
 Preserve the formatting and structure.
 Keep names, email addresses, and technical terms as-is.
@@ -33,9 +33,16 @@ From: %s
 Subject: %s
 
 %s"
-  "Prompt template for message translation.")
+  "Prompt template for message translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. from - the sender's name/email
+  3. subject - the email subject
+  4. body - the email body text"
+  :type 'string
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-translate--thread-prompt
+(defcustom mu4e-llm-translate-thread-prompt
   "Translate the following email thread to %s.
 Preserve the formatting and structure of each message.
 Keep names, email addresses, and technical terms as-is.
@@ -44,16 +51,26 @@ Do not add any commentary or notes.
 
 EMAIL THREAD:
 %s"
-  "Prompt template for thread translation.")
+  "Prompt template for thread translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. thread-context - the formatted email thread"
+  :type 'string
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-translate--text-prompt
+(defcustom mu4e-llm-translate-text-prompt
   "Translate the following text to %s.
 Preserve the formatting.
 Do not add any commentary or notes.
 
 TEXT:
 %s"
-  "Prompt template for text/region translation.")
+  "Prompt template for text/region translation.
+Placeholders (in order):
+  1. target-language - the language to translate to
+  2. text - the text to translate"
+  :type 'string
+  :group 'mu4e-llm)
 
 ;;; --- Translation Buffer Mode ---
 
@@ -179,7 +196,7 @@ TEXT:
   "Translate TEXT to TARGET-LANG, labeled as SOURCE-TYPE in UI."
   (let* ((buf (mu4e-llm-translate--prepare-buffer target-lang source-type))
          (lang-name (car (rassoc target-lang mu4e-llm-languages)))
-         (prompt (format mu4e-llm-translate--text-prompt lang-name text))
+         (prompt (format mu4e-llm-translate-text-prompt lang-name text))
          (worker (mu4e-llm--create-worker
                   'translate
                   nil
@@ -212,7 +229,7 @@ Prompt for TARGET-LANG if not specified."
          (last-msg (mu4e-llm-thread-last-message thread))
          (lang (or target-lang (mu4e-llm-translate--select-language)))
          (lang-name (car (rassoc lang mu4e-llm-languages)))
-         (prompt (format mu4e-llm-translate--message-prompt
+         (prompt (format mu4e-llm-translate-message-prompt
                          lang-name
                          (mu4e-llm-thread-message-from last-msg)
                          (mu4e-llm-thread-message-subject last-msg)
@@ -250,7 +267,7 @@ Prompt for TARGET-LANG if not specified."
          (context (mu4e-llm-thread-to-prompt-context thread))
          (lang (or target-lang (mu4e-llm-translate--select-language)))
          (lang-name (car (rassoc lang mu4e-llm-languages)))
-         (prompt (format mu4e-llm-translate--thread-prompt lang-name context)))
+         (prompt (format mu4e-llm-translate-thread-prompt lang-name context)))
     (let* ((buf (mu4e-llm-translate--prepare-buffer lang "Thread"))
            (worker (mu4e-llm--create-worker
                     'translate

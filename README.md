@@ -222,6 +222,38 @@ All options are customizable via `M-x customize-group RET mu4e-llm RET`.
 (setq mu4e-llm-default-target-language "en")
 ```
 
+### Prompt Customization
+
+All LLM prompts are customizable via `M-x customize-group RET mu4e-llm RET`:
+
+| Variable | Purpose |
+|----------|---------|
+| `mu4e-llm-summary-standard-prompt` | Standard thread summary |
+| `mu4e-llm-summary-executive-prompt` | Executive summary |
+| `mu4e-llm-draft-reply-prompt` | Reply drafting |
+| `mu4e-llm-draft-refine-prompt` | Draft refinement |
+| `mu4e-llm-draft-compose-prompt` | New email composition |
+| `mu4e-llm-draft-persona-descriptions` | Persona style definitions |
+| `mu4e-llm-translate-message-prompt` | Single message translation |
+| `mu4e-llm-translate-thread-prompt` | Thread translation |
+| `mu4e-llm-translate-text-prompt` | Text/region translation |
+
+Example customization:
+
+```elisp
+;; More detailed summaries
+(setq mu4e-llm-summary-standard-prompt
+      "Provide an extremely detailed summary of this email thread.
+Include every decision, action item, and participant opinion.
+
+EMAIL THREAD:
+%s")
+
+;; Custom persona
+(add-to-list 'mu4e-llm-draft-persona-descriptions
+             '(casual . "Write casually, like texting a friend."))
+```
+
 ## Provider Setup
 
 ### Using a Fallback Variable (Recommended)

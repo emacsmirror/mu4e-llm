@@ -23,7 +23,7 @@
 
 ;;; --- Prompt Templates ---
 
-(defconst mu4e-llm-summary--standard-prompt
+(defcustom mu4e-llm-summary-standard-prompt
   "Summarize the following email thread concisely (around 200 words).
 
 Include:
@@ -36,15 +36,21 @@ Use bullet points for clarity. Focus on what's most important for someone who ne
 
 EMAIL THREAD:
 %s"
-  "Prompt template for standard thread summaries.")
+  "Prompt template for standard thread summaries.
+The %s placeholder is replaced with the formatted email thread."
+  :type 'string
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-summary--executive-prompt
+(defcustom mu4e-llm-summary-executive-prompt
   "Provide a brief executive summary of this email thread in 2-3 sentences.
 Focus only on the critical information: what is this about and what action (if any) is needed.
 
 EMAIL THREAD:
 %s"
-  "Prompt template for executive summaries.")
+  "Prompt template for executive summaries.
+The %s placeholder is replaced with the formatted email thread."
+  :type 'string
+  :group 'mu4e-llm)
 
 ;;; --- Summary Buffer Mode ---
 
@@ -158,8 +164,8 @@ TYPE is either `standard' or `executive'."
       (let* ((buf (mu4e-llm-summary--prepare-buffer thread type))
              (context (mu4e-llm-thread-to-prompt-context thread))
              (prompt (format (if (eq type 'executive)
-                                 mu4e-llm-summary--executive-prompt
-                               mu4e-llm-summary--standard-prompt)
+                                 mu4e-llm-summary-executive-prompt
+                               mu4e-llm-summary-standard-prompt)
                              context))
              (worker (mu4e-llm--create-worker
                       (if (eq type 'executive) 'executive-summary 'summary)

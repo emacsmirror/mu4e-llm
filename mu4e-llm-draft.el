@@ -33,14 +33,18 @@
 
 ;;; --- Prompt Templates ---
 
-(defconst mu4e-llm-draft--persona-descriptions
+(defcustom mu4e-llm-draft-persona-descriptions
   '((professional . "Write in a professional, business-appropriate tone. Be courteous and clear.")
     (friendly . "Write in a warm, friendly tone while remaining professional. Be personable.")
     (formal . "Write in a formal, highly professional tone suitable for executive communication.")
     (concise . "Write as briefly as possible while being clear. Minimize pleasantries."))
-  "Descriptions for each persona style.")
+  "Alist mapping persona symbols to their prompt descriptions.
+Each entry is (PERSONA . DESCRIPTION) where PERSONA is a symbol
+and DESCRIPTION is the text inserted into prompts."
+  :type '(alist :key-type symbol :value-type string)
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-draft--reply-prompt
+(defcustom mu4e-llm-draft-reply-prompt
   "You are drafting an email reply for %s <%s>.
 
 %s
@@ -61,9 +65,16 @@ EMAIL THREAD:
 
 %s"
   "Prompt template for generating draft replies.
-Placeholders: user-name, user-email, persona, thread-context, instructions")
+Placeholders (in order):
+  1. user-name - sender's name
+  2. user-email - sender's email
+  3. persona - persona description text
+  4. thread-context - formatted email thread
+  5. instructions - optional user instructions"
+  :type 'string
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-draft--refine-prompt
+(defcustom mu4e-llm-draft-refine-prompt
   "Revise the following email draft according to this instruction: %s
 
 Keep the same basic structure and points, but adjust as requested.
@@ -72,9 +83,14 @@ Do NOT include email headers or signature.
 
 CURRENT DRAFT:
 %s"
-  "Prompt template for refining drafts.")
+  "Prompt template for refining drafts.
+Placeholders (in order):
+  1. instruction - the refinement instruction
+  2. current-draft - the draft text to refine"
+  :type 'string
+  :group 'mu4e-llm)
 
-(defconst mu4e-llm-draft--compose-prompt
+(defcustom mu4e-llm-draft-compose-prompt
   "You are composing a new email for %s <%s>.
 
 %s
@@ -93,7 +109,14 @@ Do NOT include email headers (To, From, Subject) - just the body text.
 Do NOT include a signature - that will be added automatically.
 Start with an appropriate greeting."
   "Prompt template for composing new emails.
-Placeholders: user-name, user-email, persona, instructions, recipient-context")
+Placeholders (in order):
+  1. user-name - sender's name
+  2. user-email - sender's email
+  3. persona - persona description text
+  4. instructions - what to write about
+  5. recipient-context - optional recipient info"
+  :type 'string
+  :group 'mu4e-llm)
 
 ;;; --- Context Matching ---
 
@@ -284,12 +307,12 @@ Returns the context object, or nil if no match found."
          (user-name (car identity))
          (user-email (cdr identity))
          (persona-desc (cdr (assq mu4e-llm-draft-persona
-                                  mu4e-llm-draft--persona-descriptions)))
+                                  mu4e-llm-draft-persona-descriptions)))
          (context (mu4e-llm-thread-to-prompt-context thread))
          (extra-instructions (if instructions
                                  (format "\nAdditional instructions: %s" instructions)
                                ""))
-         (prompt (format mu4e-llm-draft--reply-prompt
+         (prompt (format mu4e-llm-draft-reply-prompt
                          user-name user-email
                          persona-desc
                          context
@@ -334,11 +357,11 @@ Optional RECIPIENT and SUBJECT provide context."
          (user-name (car identity))
          (user-email (cdr identity))
          (persona-desc (cdr (assq mu4e-llm-draft-persona
-                                  mu4e-llm-draft--persona-descriptions)))
+                                  mu4e-llm-draft-persona-descriptions)))
          (recipient-context (if recipient
                                 (format "The recipient is: %s" recipient)
                               ""))
-         (prompt (format mu4e-llm-draft--compose-prompt
+         (prompt (format mu4e-llm-draft-compose-prompt
                          user-name user-email
                          persona-desc
                          instructions
@@ -395,7 +418,7 @@ Prompts for recipient and subject, then generates the email body."
   "Refine current draft with INSTRUCTION."
   (let* ((current-draft (mu4e-llm-draft--get-draft-text))
          (buf (current-buffer))
-         (prompt (format mu4e-llm-draft--refine-prompt
+         (prompt (format mu4e-llm-draft-refine-prompt
                          instruction
                          current-draft)))
     ;; Abort previous worker if any
