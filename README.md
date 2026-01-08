@@ -7,30 +7,34 @@
 AI-powered email assistance for mu4e using LLM providers via [llm.el](https://github.com/ahyatt/llm).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a6fa5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2d4a6f', 'lineColor': '#5c7caa', 'secondaryColor': '#e8f0fe', 'tertiaryColor': '#f5f5f5'}}}%%
 flowchart LR
-    subgraph mu4e["📧 mu4e"]
-        email[View Email]
+    subgraph input [" "]
+        direction TB
+        E["📧 Email Thread"]
     end
 
-    subgraph llm["🤖 mu4e-llm"]
-        summarize[Summarize]
-        reply[Smart Reply]
-        translate[Translate]
+    subgraph features ["mu4e-llm"]
+        direction TB
+        S["📋 Summarize"]
+        R["✍️ Smart Reply"]
+        T["🌐 Translate"]
     end
 
-    subgraph providers["☁️ LLM Providers"]
-        openai[OpenAI]
-        claude[Claude]
-        ollama[Ollama]
+    subgraph output [" "]
+        direction TB
+        O1["Summary"]
+        O2["Draft"]
+        O3["Translation"]
     end
 
-    email --> summarize
-    email --> reply
-    email --> translate
+    E --> S --> O1
+    E --> R --> O2
+    E --> T --> O3
 
-    summarize --> providers
-    reply --> providers
-    translate --> providers
+    style input fill:#f9f9f9,stroke:#ddd
+    style features fill:#4a6fa5,stroke:#2d4a6f,color:#fff
+    style output fill:#f0f7ff,stroke:#4a6fa5
 ```
 
 ## Features
@@ -107,49 +111,50 @@ flowchart LR
 #### Smart Reply Workflow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a6fa5', 'primaryTextColor': '#fff', 'lineColor': '#5c7caa'}}}%%
 flowchart TD
-    A["📧 View email in mu4e"] --> B["C-c a e r<br/>Generate reply"]
-    B --> C["*mu4e-llm-draft* buffer<br/>shows AI-generated reply"]
+    A["📧 View email"] -->|"C-c a e r"| B["🤖 Generate draft"]
+    B --> C["📝 Review in *draft* buffer"]
 
-    C --> D{"Edit & Refine"}
+    C --> D{Done?}
 
-    D -->|"C-c C-r"| E["Custom refinement"]
-    D -->|"C-c C-s"| F["Make shorter"]
-    D -->|"C-c C-p"| G["Make more polite"]
+    D -->|No| E["🔄 Refine"]
+    E -->|"C-c C-r/s/p"| B
 
-    E --> C
-    F --> C
-    G --> C
+    D -->|Yes| F{Accept?}
+    F -->|"C-c C-f"| G["✉️ Open in compose"]
+    F -->|"C-c C-k"| H["🗑️ Discard"]
 
-    D -->|"C-c C-f"| H["✉️ Open in mu4e compose<br/>with correct signature"]
-    D -->|"C-c C-k"| I["❌ Cancel"]
+    style A fill:#f0f7ff,stroke:#4a6fa5
+    style B fill:#4a6fa5,stroke:#2d4a6f,color:#fff
+    style C fill:#e8f4e8,stroke:#4a8f4a
+    style G fill:#4a8f4a,stroke:#2d6f2d,color:#fff
+    style H fill:#f5f5f5,stroke:#999
 ```
 
-#### Command Map
+#### Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a6fa5'}}}%%
 flowchart TB
-    subgraph prefix["C-c a e (mu4e-llm prefix)"]
-        direction TB
-        s["s → Summarize thread"]
-        S["S → Executive summary"]
-        r["r → Smart reply"]
-        R["R → Refine draft"]
-        n["n → New email with AI"]
-        t["t → Translate message"]
-        T["T → Translate thread"]
-        a["a → Abort operation"]
-        q["? → Help"]
+    subgraph emacs ["Emacs"]
+        MU4E["mu4e"] --> |email data| CORE
+        subgraph pkg ["mu4e-llm"]
+            CORE["core"] --> SUM["summary"]
+            CORE --> DFT["draft"]
+            CORE --> TRN["translate"]
+        end
     end
 
-    subgraph draft["Draft buffer (C-c ...)"]
-        direction TB
-        cr["C-r → Refine"]
-        cs["C-s → Shorten"]
-        cp["C-p → Polite"]
-        cf["C-f → Finalize"]
-        ck["C-k → Cancel"]
+    subgraph external ["External"]
+        LLM["llm.el"] --> API["OpenAI / Claude / Ollama"]
     end
+
+    CORE <--> LLM
+
+    style emacs fill:#f9f9f9,stroke:#ddd
+    style pkg fill:#e8f0fe,stroke:#4a6fa5
+    style external fill:#fff5e6,stroke:#d4a84b
 ```
 
 ## Configuration
