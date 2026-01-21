@@ -6,6 +6,10 @@
 ;; URL: https://github.com/sillyfellow/mu4e-llm
 ;; Version: 0.1.0
 
+;; This file is NOT part of GNU Emacs.
+
+;; SPDX-License-Identifier: MIT
+
 ;;; Commentary:
 ;; Customization variables for mu4e-llm.
 
@@ -301,8 +305,8 @@ The %s placeholder is replaced with the formatted email thread."
 Set to nil to disable automatic keybinding setup.
 Users can then bind `mu4e-llm-map' manually.
 
-If set to a string starting with \"C-c a \" and `ai-commands-prefix-map'
-is available, only the suffix will be bound under that prefix map."
+If `ai-commands-prefix-map' is available and this prefix starts
+with its prefix, only the suffix will be bound under that map."
   :type '(choice (string :tag "Key sequence")
                  (const :tag "Disable automatic keybindings" nil))
   :group 'mu4e-llm)

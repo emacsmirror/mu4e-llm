@@ -6,6 +6,10 @@
 ;; URL: https://github.com/sillyfellow/mu4e-llm
 ;; Version: 0.1.0
 
+;; This file is NOT part of GNU Emacs.
+
+;; SPDX-License-Identifier: MIT
+
 ;;; Commentary:
 ;; Email translation using LLM for mu4e.
 ;; Supports message, thread, and region translation.

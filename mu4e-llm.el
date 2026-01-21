@@ -62,7 +62,7 @@
     (define-key map (kbd "?") #'mu4e-llm-help)
     map)
   "Keymap for mu4e-llm commands.
-Bound to C-c a e in mu4e modes.")
+Bound to the prefix specified by `mu4e-llm-keymap-prefix'.")
 
 ;;; --- Minor Mode ---
 

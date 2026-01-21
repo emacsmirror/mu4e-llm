@@ -6,6 +6,10 @@
 ;; URL: https://github.com/sillyfellow/mu4e-llm
 ;; Version: 0.1.0
 
+;; This file is NOT part of GNU Emacs.
+
+;; SPDX-License-Identifier: MIT
+
 ;;; Commentary:
 ;; Smart reply drafting with LLM, supporting iterative refinement.
 ;; Output is org-mode syntax compatible with org-msg.

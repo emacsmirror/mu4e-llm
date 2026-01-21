@@ -6,6 +6,10 @@
 ;; URL: https://github.com/sillyfellow/mu4e-llm
 ;; Version: 0.1.0
 
+;; This file is NOT part of GNU Emacs.
+
+;; SPDX-License-Identifier: MIT
+
 ;;; Commentary:
 ;; Thread summarization with LLM, supporting standard and executive summaries.
 ;; Features streaming output and caching.
