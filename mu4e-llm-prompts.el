@@ -119,11 +119,18 @@ Placeholders:
   :group 'mu4e-llm)
 
 (defcustom mu4e-llm-draft-refine-prompt
-  "Revise the following email draft according to this instruction: %i
+  "Revise the email draft below. The instruction is: %i
 
-Keep the same basic structure and points, but adjust as requested.
-Use org-mode syntax for formatting.
-Do NOT include email headers or signature.
+An email has three parts: the greeting, the body, and the sign-off. Apply
+the instruction to the body. Leave the greeting and the sign-off as they
+are, unless the instruction asks for them by name. \"Make it one line\"
+means the body becomes one line, not that the whole email collapses into
+one line.
+
+Change what the instruction asks for and nothing else. Do not rewrite
+sentences you were not asked to touch.
+
+Keep org-mode syntax. No email headers, no signature.
 
 CURRENT DRAFT:
 %d"
@@ -131,7 +138,34 @@ CURRENT DRAFT:
 
 Placeholders:
   %i  the refinement instruction
-  %d  the current draft text"
+  %d  the current draft text
+
+The instruction is one of `mu4e-llm-draft-shorten-instruction' and its
+siblings below, or whatever the user typed."
+  :type 'string
+  :group 'mu4e-llm)
+
+;;; --- Refinement instructions ---
+;;
+;; Each is handed to `mu4e-llm-draft-refine-prompt' as its %i, so each
+;; inherits the rule about leaving the greeting and the sign-off alone.
+
+(defcustom mu4e-llm-draft-shorten-instruction
+  "Cut this down. Remove whole sentences that carry no information, not
+just words. Keep every fact, request, question and commitment. Where two
+sentences say the same thing, keep the clearer one. Do not make the tone
+clipped or abrupt in the process."
+  "What the shorten key asks for."
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-polite-instruction
+  "Make this warmer without making it longer. Soften anything that reads
+as blunt or demanding: turn bare instructions into requests, and
+acknowledge whatever the other person is being asked to do. Do not add
+flattery, do not add an opening pleasantry, and do not add a closing
+paragraph that only offers further help."
+  "What the polite key asks for."
   :type 'string
   :group 'mu4e-llm)
 

@@ -384,16 +384,14 @@ Prompts for recipient and subject, then generates the email body."
   (mu4e-llm-draft--refine-with-instruction instruction))
 
 (defun mu4e-llm-draft-shorten ()
-  "Make the current draft more concise."
+  "Make the current draft shorter without losing anything it says."
   (interactive)
-  (mu4e-llm-draft--refine-with-instruction
-   "Make this more concise. Remove unnecessary words and phrases while keeping the core message."))
+  (mu4e-llm-draft--refine-with-instruction mu4e-llm-draft-shorten-instruction))
 
 (defun mu4e-llm-draft-make-polite ()
-  "Make the current draft more polite and professional."
+  "Make the current draft warmer."
   (interactive)
-  (mu4e-llm-draft--refine-with-instruction
-   "Make this more polite and professional. Soften any direct language and add appropriate courtesies."))
+  (mu4e-llm-draft--refine-with-instruction mu4e-llm-draft-polite-instruction))
 
 ;;; --- Buffer Actions ---
 

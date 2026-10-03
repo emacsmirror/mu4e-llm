@@ -855,5 +855,82 @@ This is the instruction that made every generated reply a bullet list."
                         mu4e-llm-draft-compose-prompt))
     (should-not (string-match-p "bullet" prompt))))
 
+;;; ==========================================================================
+;;; Refinement Tests (refine, shorten, polite)
+;;; ==========================================================================
+
+(defmacro mu4e-llm-test--in-draft-buffer (&rest body)
+  "Open a draft buffer with the llm layer stubbed, then run BODY inside it."
+  (declare (indent 0) (debug t))
+  `(let ((mu4e-llm--workers (make-hash-table :test 'equal))
+         (mu4e-llm--worker-counter 0)
+         (captured nil))
+     (cl-letf (((symbol-function 'mu4e-llm-thread-extract)
+                (lambda (_m) (mu4e-llm-test--thread-with-message)))
+               ((symbol-function 'mu4e-llm-thread-to-prompt-context)
+                (lambda (_t) "THREAD-MARKER"))
+               ((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg)))
+       (mu4e-llm-test--capturing-chat-prompt captured
+         (mu4e-llm-draft-reply)
+         (unwind-protect
+             (with-current-buffer mu4e-llm-draft-buffer-name
+               (setq captured nil)
+               ,@body)
+           (kill-buffer mu4e-llm-draft-buffer-name))))))
+
+(ert-deftest mu4e-llm-test-shorten-instruction-is-a-variable ()
+  "The fixed instructions live in the prompts file, not inline in the code.
+A user who wants shorten to behave differently edits one variable."
+  (should (stringp mu4e-llm-draft-shorten-instruction))
+  (should (stringp mu4e-llm-draft-polite-instruction)))
+
+(ert-deftest mu4e-llm-test-shorten-sends-its-instruction ()
+  "Pressing shorten reaches the provider with the shorten instruction."
+  (mu4e-llm-test--in-draft-buffer
+    (mu4e-llm-draft-shorten)
+    (should captured)
+    (should (string-match-p (regexp-quote mu4e-llm-draft-shorten-instruction)
+                            (car (car captured))))))
+
+(ert-deftest mu4e-llm-test-polite-sends-its-instruction ()
+  "Pressing polite reaches the provider with the polite instruction."
+  (mu4e-llm-test--in-draft-buffer
+    (mu4e-llm-draft-make-polite)
+    (should captured)
+    (should (string-match-p (regexp-quote mu4e-llm-draft-polite-instruction)
+                            (car (car captured))))))
+
+(ert-deftest mu4e-llm-test-refine-carries-the-voice ()
+  "A refinement must not undo the voice the first draft was written in."
+  (mu4e-llm-test--in-draft-buffer
+    (mu4e-llm-draft--refine-with-instruction "make it shorter")
+    (should (equal mu4e-llm-prompt-voice
+                   (mu4e-llm-test--context-of (car captured))))))
+
+(ert-deftest mu4e-llm-test-refine-carries-instruction-and-draft ()
+  "The refine prompt contains both the instruction and the current draft."
+  (mu4e-llm-test--in-draft-buffer
+    (let ((inhibit-read-only t))
+      (goto-char mu4e-llm-draft--draft-start)
+      (insert "DRAFT-MARKER"))
+    (mu4e-llm-draft--refine-with-instruction "INSTRUCTION-MARKER")
+    (let ((prompt (car (car captured))))
+      (should (string-match-p "INSTRUCTION-MARKER" prompt))
+      (should (string-match-p "DRAFT-MARKER" prompt)))))
+
+;;; --- Deletion guards ---
+
+(ert-deftest mu4e-llm-test-guard-refine-does-not-pin-the-structure ()
+  "Deletion guard: \"keep the same basic structure\" fought every
+shortening instruction it was sent with."
+  (should-not (string-match-p "same basic structure"
+                              mu4e-llm-draft-refine-prompt)))
+
+(ert-deftest mu4e-llm-test-guard-refine-protects-greeting-and-signoff ()
+  "Deletion guard: refine still knows an email has parts.
+\"Make it one line\" means the body, not the greeting and sign-off too."
+  (should (string-match-p "greeting" mu4e-llm-draft-refine-prompt))
+  (should (string-match-p "sign-off" mu4e-llm-draft-refine-prompt)))
+
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here
