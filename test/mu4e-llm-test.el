@@ -932,5 +932,70 @@ shortening instruction it was sent with."
   (should (string-match-p "greeting" mu4e-llm-draft-refine-prompt))
   (should (string-match-p "sign-off" mu4e-llm-draft-refine-prompt)))
 
+;;; ==========================================================================
+;;; Draft Key Tests (plainer, bullets, and what they must not shadow)
+;;; ==========================================================================
+
+(ert-deftest mu4e-llm-test-plainer-is-bound ()
+  "Plainer is on C-c C-n."
+  (should (eq 'mu4e-llm-draft-plainer
+              (lookup-key mu4e-llm-draft-mode-map (kbd "C-c C-n")))))
+
+(ert-deftest mu4e-llm-test-bullets-is-bound ()
+  "Bullets is on C-c C-b."
+  (should (eq 'mu4e-llm-draft-bullets
+              (lookup-key mu4e-llm-draft-mode-map (kbd "C-c C-b")))))
+
+(ert-deftest mu4e-llm-test-insert-link-survives ()
+  "C-c C-l must still insert an org link.
+The draft map inherits org-mode-map, and a draft is org syntax carrying
+[[url][text]] links, so this is the one org key worth protecting."
+  (mu4e-llm-test--in-draft-buffer
+    (should (eq 'org-insert-link (key-binding (kbd "C-c C-l"))))))
+
+(ert-deftest mu4e-llm-test-existing-draft-keys-survive ()
+  "The six bindings that were already there still resolve."
+  (dolist (pair '(("C-c C-r" . mu4e-llm-draft-refine)
+                  ("C-c C-s" . mu4e-llm-draft-shorten)
+                  ("C-c C-p" . mu4e-llm-draft-make-polite)
+                  ("C-c C-f" . mu4e-llm-draft-finalize)
+                  ("C-c C-t" . mu4e-llm-draft-toggle-summary)
+                  ("C-c C-k" . mu4e-llm-draft-cancel)))
+    (should (eq (cdr pair)
+                (lookup-key mu4e-llm-draft-mode-map (kbd (car pair)))))))
+
+(ert-deftest mu4e-llm-test-plainer-sends-its-instruction ()
+  "Pressing plainer reaches the provider with the plainer instruction."
+  (mu4e-llm-test--in-draft-buffer
+    (mu4e-llm-draft-plainer)
+    (should captured)
+    (should (string-match-p (regexp-quote mu4e-llm-draft-plainer-instruction)
+                            (car (car captured))))))
+
+(ert-deftest mu4e-llm-test-bullets-sends-its-instruction ()
+  "Pressing bullets reaches the provider with the bullets instruction."
+  (mu4e-llm-test--in-draft-buffer
+    (mu4e-llm-draft-bullets)
+    (should captured)
+    (should (string-match-p (regexp-quote mu4e-llm-draft-bullets-instruction)
+                            (car (car captured))))))
+
+(ert-deftest mu4e-llm-test-help-line-keeps-its-sentinel ()
+  "Four functions find the end of the draft by searching for \"\\n\\n[C-c\".
+Extending the help line must not break that prefix, or streaming output
+would overwrite the legend -- and the draft boundary would move."
+  (mu4e-llm-test--in-draft-buffer
+    (should (save-excursion
+              (goto-char (point-min))
+              (search-forward "\n\n[C-c" nil t)))))
+
+(ert-deftest mu4e-llm-test-help-line-names-the-new-keys ()
+  "Deletion guard: the legend advertises all eight keys."
+  (mu4e-llm-test--in-draft-buffer
+    (let ((text (buffer-substring-no-properties (point-min) (point-max))))
+      (dolist (key '("C-c C-f" "C-c C-r" "C-c C-s" "C-c C-p"
+                     "C-c C-n" "C-c C-b" "C-c C-k"))
+        (should (string-match-p (regexp-quote key) text))))))
+
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here

@@ -58,6 +58,11 @@ Returns the context object, or nil if no match found."
     (define-key map (kbd "C-c C-r") #'mu4e-llm-draft-refine)
     (define-key map (kbd "C-c C-s") #'mu4e-llm-draft-shorten)
     (define-key map (kbd "C-c C-p") #'mu4e-llm-draft-make-polite)
+    ;; C-c C-n and C-c C-b shadow org's heading navigation, which is of no
+    ;; use in a five-line email.  C-c C-l is deliberately left alone: it is
+    ;; org-insert-link, and drafts carry [[url][text]] links.
+    (define-key map (kbd "C-c C-n") #'mu4e-llm-draft-plainer)
+    (define-key map (kbd "C-c C-b") #'mu4e-llm-draft-bullets)
     (define-key map (kbd "C-c C-f") #'mu4e-llm-draft-finalize)
     (define-key map (kbd "C-c C-t") #'mu4e-llm-draft-toggle-summary)
     (define-key map (kbd "C-c C-k") #'mu4e-llm-draft-cancel)
@@ -152,7 +157,9 @@ Returns the context object, or nil if no match found."
         ;; Help text at bottom
         (insert "\n\n")
         (insert (propertize
-                 "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  [C-c C-p]olite  [C-c C-k]cancel"
+                 (concat "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  "
+                         "[C-c C-p]olite  [C-c C-n] plainer  [C-c C-b]ullets  "
+                         "[C-c C-k]cancel")
                  'face 'shadow))))
     buf))
 
@@ -184,7 +191,9 @@ Returns the context object, or nil if no match found."
         ;; Help text at bottom
         (insert "\n\n")
         (insert (propertize
-                 "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  [C-c C-p]olite  [C-c C-k]cancel"
+                 (concat "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  "
+                         "[C-c C-p]olite  [C-c C-n] plainer  [C-c C-b]ullets  "
+                         "[C-c C-k]cancel")
                  'face 'shadow))))
     buf))
 
@@ -392,6 +401,16 @@ Prompts for recipient and subject, then generates the email body."
   "Make the current draft warmer."
   (interactive)
   (mu4e-llm-draft--refine-with-instruction mu4e-llm-draft-polite-instruction))
+
+(defun mu4e-llm-draft-plainer ()
+  "Rewrite the current draft in plainer language, keeping its meaning."
+  (interactive)
+  (mu4e-llm-draft--refine-with-instruction mu4e-llm-draft-plainer-instruction))
+
+(defun mu4e-llm-draft-bullets ()
+  "Turn the body of the current draft into a bulleted list."
+  (interactive)
+  (mu4e-llm-draft--refine-with-instruction mu4e-llm-draft-bullets-instruction))
 
 ;;; --- Buffer Actions ---
 

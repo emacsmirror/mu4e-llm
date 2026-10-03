@@ -169,6 +169,33 @@ paragraph that only offers further help."
   :type 'string
   :group 'mu4e-llm)
 
+(defcustom mu4e-llm-draft-plainer-instruction
+  "Make this plainer. Split long sentences. Replace jargon and formal
+vocabulary with ordinary words. Cut throat-clearing before the point.
+Keep the meaning exactly as it is: this is a rewrite of the wording, not
+of the substance. It should read as though a person wrote it quickly and
+clearly."
+  "What the plainer key asks for.
+
+This is the check on whether a draft reads like a person wrote it.  No
+test can make that judgement, so the key exists to let the reader make
+it in one keystroke."
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-bullets-instruction
+  "Turn the body into a short bulleted list, using org-mode \"- \"
+bullets. One point per bullet, each on a single line where it fits. Keep
+the greeting and the sign-off as prose, exactly as they are. If the body
+makes a single point, leave it as prose rather than writing a list of
+one."
+  "What the bullets key asks for.
+
+Prose is the default for a generated reply.  This is how you ask for the
+other thing, for the emails where a list genuinely reads better."
+  :type 'string
+  :group 'mu4e-llm)
+
 (defcustom mu4e-llm-draft-compose-prompt
   "Write a new email for %n <%e>, about this: %i
 
