@@ -120,7 +120,7 @@ To hang the commands under a shared prefix map of your own, set
 | `C-c C-f` | Finalize | Accept the draft and open a compose buffer |
 | `C-c C-k` | Cancel | Discard the draft |
 
-`C-c C-l` is left alone: it is `org-insert-link`, and drafts are org syntax.
+`C-c C-l` still inserts an org link, because drafts are org syntax.
 
 Replies come back as prose. `C-c C-b` is how you ask for bullets on the
 emails where a list reads better.
@@ -273,11 +273,12 @@ Every prompt lives in one file, `mu4e-llm-prompts.el`. Nothing else in the
 package holds prompt text, so that is the only file to open.
 
 **To change how your email sounds, edit one variable.**
-`mu4e-llm-prompt-voice` holds the whole tone instruction: short sentences,
-plain words, warm and direct, prose rather than lists, reply in the language
-of the message being answered, and a list of the openings never to write. It
-is sent as the system prompt for the three operations that write email, so
-one edit changes all of them.
+`mu4e-llm-prompt-voice` holds the whole tone instruction. It asks for short
+sentences, plain words, a warm and direct register, and prose rather than
+lists. It tells the model to answer in the language of the message it replies
+to. It also names the openings to avoid. The package sends it as the system
+prompt for all three operations that write email, so one edit changes every
+one of them.
 
 ```elisp
 ;; A blunter house style
@@ -320,7 +321,7 @@ after a percent sign. Each prompt's docstring lists the letters it takes;
 | | |
 |---|---|
 | `%t` | the email thread |
-| `%d` | the draft being refined |
+| `%d` | the draft you are refining |
 | `%i` | the instruction, or what to write about |
 | `%n` `%e` | your name, your email address |
 | `%l` | the language to translate into |
@@ -328,7 +329,7 @@ after a percent sign. Each prompt's docstring lists the letters it takes;
 | `%r` | a line naming the recipient |
 
 Order does not matter, and you can leave one out. A letter the package does
-not supply is left alone rather than breaking the call. To put a real
+not supply stays as it is, rather than breaking the call. To put a real
 percent sign in a prompt, write it twice: `%%`.
 
 ```elisp

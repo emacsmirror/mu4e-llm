@@ -65,7 +65,7 @@ CI tests against Emacs 28.2, 29.1, and 29.4.
 2. Reference via `mu4e-llm-<option-name>`
 
 ### Changing What the AI Writes
-Everything the model is told lives in mu4e-llm-prompts.el. `mu4e-llm-prompt-voice` is the system prompt for drafting, composing and refining, so it is the single place that sets tone. Summaries and translations deliberately do not use it. Prompts take named `format-spec` letters, not positional `%s`; a literal percent is `%%`.
+mu4e-llm-prompts.el holds everything the package sends to the model. `mu4e-llm-prompt-voice` is the system prompt for drafting, composing and refining. It is the one place that sets tone. Summaries and translations deliberately skip it. Prompts take named `format-spec` letters, not positional `%s`. Write a literal percent as `%%`.
 
 ## Important Notes
 
