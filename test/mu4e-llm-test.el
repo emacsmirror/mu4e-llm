@@ -15,6 +15,7 @@
   (add-to-list 'load-path (expand-file-name ".." dir)))
 
 (require 'mu4e-llm-config)
+(require 'mu4e-llm-prompts)
 (require 'mu4e-llm-thread)
 (require 'mu4e-llm-core)
 (require 'mu4e-llm-summary)
@@ -652,6 +653,80 @@ The mode map is fresh each time so bindings do not leak between tests."
   (let ((mu4e-llm-keymap-prefix "C-, e"))
     (should (string-match-p "C-, e" (mu4e-llm--help-text)))
     (should-not (string-match-p "C-c a e prefix" (mu4e-llm--help-text)))))
+
+;;; ==========================================================================
+;;; Prompt File Tests (mu4e-llm-prompts)
+;;; ==========================================================================
+
+(defconst mu4e-llm-test--prompt-variables
+  '(mu4e-llm-draft-reply-prompt
+    mu4e-llm-draft-refine-prompt
+    mu4e-llm-draft-compose-prompt
+    mu4e-llm-translate-message-prompt
+    mu4e-llm-translate-thread-prompt
+    mu4e-llm-translate-text-prompt
+    mu4e-llm-summary-standard-prompt
+    mu4e-llm-summary-executive-prompt)
+  "Every prompt the package sends, as the README documents them.")
+
+(ert-deftest mu4e-llm-test-prompts-all-bound ()
+  "Loading mu4e-llm-prompts should bind every documented prompt."
+  (dolist (var mu4e-llm-test--prompt-variables)
+    (should (boundp var))
+    (should (stringp (symbol-value var)))))
+
+(ert-deftest mu4e-llm-test-prompts-left-config ()
+  "No prompt should still be defined by mu4e-llm-config.
+The point of the prompts file is that there is one place to look."
+  (let ((config (expand-file-name
+                 "mu4e-llm-config.el"
+                 (file-name-directory (locate-library "mu4e-llm-config")))))
+    (when (file-readable-p config)
+      (with-temp-buffer
+        (insert-file-contents config)
+        (dolist (var mu4e-llm-test--prompt-variables)
+          (goto-char (point-min))
+          (should-not (search-forward (format "(defcustom %s" var) nil t)))))))
+
+(ert-deftest mu4e-llm-test-prompt-substitutes-named-letters ()
+  "Each named letter should be replaced by its value, order independent."
+  (should (equal "B then A"
+                 (mu4e-llm--prompt "%b then %a"
+                                   '((?a . "A") (?b . "B"))))))
+
+(ert-deftest mu4e-llm-test-prompt-leaves-unknown-letter ()
+  "An unsupplied placeholder stays put rather than signalling.
+A user who edits a prompt cannot break the call this way."
+  (should (equal "A and %z"
+                 (mu4e-llm--prompt "%a and %z" '((?a . "A"))))))
+
+(ert-deftest mu4e-llm-test-prompt-renders-literal-percent ()
+  "A doubled percent is how a prompt writes a literal percent sign."
+  (should (equal "50% off"
+                 (mu4e-llm--prompt "50%% off" '((?a . "A"))))))
+
+(ert-deftest mu4e-llm-test-prompt-reply-carries-identity-and-thread ()
+  "A rendered reply prompt should contain the sender and the thread."
+  (let ((rendered (mu4e-llm--prompt
+                   mu4e-llm-draft-reply-prompt
+                   '((?n . "Ada") (?e . "ada@example.org") (?p . "")
+                     (?t . "THREAD-MARKER") (?i . "")))))
+    (should (string-match-p "Ada" rendered))
+    (should (string-match-p "ada@example.org" rendered))
+    (should (string-match-p "THREAD-MARKER" rendered))
+    (should-not (string-match-p "%" rendered))))
+
+(ert-deftest mu4e-llm-test-prompt-empty-subject-leaves-no-placeholder ()
+  "A message with no subject must not leak its placeholder into the prompt.
+`mu4e-message-field' returns nil for a missing subject, and nil counts as
+missing to `format-spec', so the call site passes an empty string."
+  (let ((rendered (mu4e-llm--prompt
+                   mu4e-llm-translate-message-prompt
+                   '((?l . "German") (?f . "someone@example.org")
+                     (?u . "") (?b . "BODY-MARKER")))))
+    (should (string-match-p "BODY-MARKER" rendered))
+    (should (string-match-p "Subject: *\n" rendered))
+    (should-not (string-match-p "%u" rendered))))
 
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here

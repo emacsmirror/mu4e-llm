@@ -5,7 +5,8 @@ EMACS ?= emacs
 BATCH = $(EMACS) -batch -Q -L .
 
 # Source files (excluding test files)
-SRCS = mu4e-llm.el mu4e-llm-config.el mu4e-llm-core.el mu4e-llm-draft.el \
+SRCS = mu4e-llm.el mu4e-llm-config.el mu4e-llm-prompts.el mu4e-llm-core.el \
+       mu4e-llm-draft.el \
        mu4e-llm-summary.el mu4e-llm-thread.el mu4e-llm-translate.el
 
 .PHONY: all test compile lint checkdoc package-lint clean help

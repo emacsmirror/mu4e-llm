@@ -19,6 +19,7 @@
 (require 'cl-lib)
 (require 'org)
 (require 'mu4e-llm-config)
+(require 'mu4e-llm-prompts)
 (require 'mu4e-llm-core)
 (require 'mu4e-llm-thread)
 
@@ -37,9 +38,7 @@
 
 ;; Variables from mu4e-llm-config (suppress byte-compile warnings)
 (defvar mu4e-llm-draft-persona-descriptions)
-(defvar mu4e-llm-draft-reply-prompt)
-(defvar mu4e-llm-draft-refine-prompt)
-(defvar mu4e-llm-draft-compose-prompt)
+
 
 ;;; --- Context Matching ---
 
@@ -235,11 +234,13 @@ Returns the context object, or nil if no match found."
          (extra-instructions (if instructions
                                  (format "\nAdditional instructions: %s" instructions)
                                ""))
-         (prompt (format mu4e-llm-draft-reply-prompt
-                         user-name user-email
-                         persona-desc
-                         context
-                         extra-instructions))
+         (prompt (mu4e-llm--prompt
+                  mu4e-llm-draft-reply-prompt
+                  `((?n . ,user-name)
+                    (?e . ,user-email)
+                    (?p . ,(or persona-desc ""))
+                    (?t . ,context)
+                    (?i . ,extra-instructions))))
          (worker (mu4e-llm--create-worker
                   'draft
                   msg
@@ -284,11 +285,13 @@ Optional RECIPIENT and SUBJECT provide context."
          (recipient-context (if recipient
                                 (format "The recipient is: %s" recipient)
                               ""))
-         (prompt (format mu4e-llm-draft-compose-prompt
-                         user-name user-email
-                         persona-desc
-                         instructions
-                         recipient-context))
+         (prompt (mu4e-llm--prompt
+                  mu4e-llm-draft-compose-prompt
+                  `((?n . ,user-name)
+                    (?e . ,user-email)
+                    (?p . ,(or persona-desc ""))
+                    (?i . ,instructions)
+                    (?r . ,recipient-context))))
          (worker (mu4e-llm--create-worker
                   'compose
                   nil
@@ -341,9 +344,10 @@ Prompts for recipient and subject, then generates the email body."
   "Refine current draft with INSTRUCTION."
   (let* ((current-draft (mu4e-llm-draft--get-draft-text))
          (buf (current-buffer))
-         (prompt (format mu4e-llm-draft-refine-prompt
-                         instruction
-                         current-draft)))
+         (prompt (mu4e-llm--prompt
+                  mu4e-llm-draft-refine-prompt
+                  `((?i . ,instruction)
+                    (?d . ,(or current-draft ""))))))
     ;; Abort previous worker if any
     (when mu4e-llm-draft--worker
       (mu4e-llm--abort-worker mu4e-llm-draft--worker))

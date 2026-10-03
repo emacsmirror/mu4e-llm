@@ -37,6 +37,7 @@
 (require 'cl-lib)
 (declare-function cl-struct-slot-value "cl-macs" (struct-type slot-name inst))
 (require 'mu4e-llm-config)
+(require 'mu4e-llm-prompts)
 (require 'mu4e-llm-core)
 
 ;; These will be loaded when needed

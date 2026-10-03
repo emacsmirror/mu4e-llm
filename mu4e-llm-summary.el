@@ -18,6 +18,7 @@
 
 (require 'cl-lib)
 (require 'mu4e-llm-config)
+(require 'mu4e-llm-prompts)
 (require 'mu4e-llm-core)
 (require 'mu4e-llm-thread)
 
@@ -26,8 +27,7 @@
 (declare-function mu4e-llm-draft-reply "mu4e-llm-draft")
 
 ;; Variables from mu4e-llm-config (suppress byte-compile warnings)
-(defvar mu4e-llm-summary-standard-prompt)
-(defvar mu4e-llm-summary-executive-prompt)
+
 
 ;;; --- Summary Buffer Mode ---
 
@@ -157,10 +157,11 @@ rather than read from point, so a summary buffer can regenerate itself."
       ;; Generate new summary
       (let* ((buf (mu4e-llm-summary--prepare-buffer msg thread type))
              (context (mu4e-llm-thread-to-prompt-context thread))
-             (prompt (format (if (eq type 'executive)
-                                 mu4e-llm-summary-executive-prompt
-                               mu4e-llm-summary-standard-prompt)
-                             context))
+             (prompt (mu4e-llm--prompt
+                      (if (eq type 'executive)
+                          mu4e-llm-summary-executive-prompt
+                        mu4e-llm-summary-standard-prompt)
+                      `((?t . ,context))))
              (worker (mu4e-llm--create-worker
                       (if (eq type 'executive) 'executive-summary 'summary)
                       msg
