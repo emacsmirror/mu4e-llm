@@ -39,7 +39,7 @@
 (require 'mu4e-llm-config)
 (require 'mu4e-llm-core)
 
-;; These will be loaded when needed
+;; Autoloaded through the ;;;###autoload cookies in their own modules
 (declare-function mu4e-llm-summarize "mu4e-llm-summary")
 (declare-function mu4e-llm-summarize-executive "mu4e-llm-summary")
 (declare-function mu4e-llm-draft-reply "mu4e-llm-draft")
@@ -160,24 +160,6 @@ If set to nil, no automatic keybindings are created."
   (add-hook 'mu4e-view-mode-hook #'mu4e-llm--setup-keybindings)
   (message "mu4e-llm initialized. Use %s for AI commands."
            (or mu4e-llm-keymap-prefix "M-x mu4e-llm-*")))
-
-;;; --- Autoloads for lazy loading ---
-
-;; These are defined in their respective modules and will be autoloaded
-(autoload 'mu4e-llm-summarize "mu4e-llm-summary"
-  "Summarize the current email thread." t)
-(autoload 'mu4e-llm-summarize-executive "mu4e-llm-summary"
-  "Generate a brief executive summary of the current thread." t)
-(autoload 'mu4e-llm-draft-reply "mu4e-llm-draft"
-  "Generate a smart reply to the current email." t)
-(autoload 'mu4e-llm-draft-refine "mu4e-llm-draft"
-  "Refine the current draft with a custom instruction." t)
-(autoload 'mu4e-llm-draft-compose "mu4e-llm-draft"
-  "Compose a new email based on instructions." t)
-(autoload 'mu4e-llm-translate-message "mu4e-llm-translate"
-  "Translate the current email message." t)
-(autoload 'mu4e-llm-translate-thread "mu4e-llm-translate"
-  "Translate the entire email thread." t)
 
 (provide 'mu4e-llm)
 ;;; mu4e-llm.el ends here
