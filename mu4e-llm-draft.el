@@ -257,7 +257,7 @@ Returns the context object, or nil if no match found."
                   `(:thread ,thread))))
     (with-current-buffer buf
       (setq mu4e-llm-draft--worker worker))
-    (display-buffer buf)
+    (pop-to-buffer buf)
     ;; Start LLM call
     (mu4e-llm--chat
      worker
@@ -268,11 +268,16 @@ Returns the context object, or nil if no match found."
        (mu4e-llm-draft--finalize-text buf final)))))
 
 ;;;###autoload
-(defun mu4e-llm-draft-reply (&optional instructions)
-  "Generate a smart reply to the email at point.
-Optional INSTRUCTIONS customize the reply."
+(defun mu4e-llm-draft-reply (&optional instructions msg)
+  "Generate a smart reply to an email.
+Optional INSTRUCTIONS customize the reply.  MSG is the message to reply
+to, defaulting to the one at point.  The summary buffer passes the
+message it was generated from, because it has no message at point.
+
+MSG is appended rather than prepended so the existing autoload and the
+keymap entry, which call this with no arguments, keep working."
   (interactive)
-  (let* ((msg (mu4e-message-at-point))
+  (let* ((msg (or msg (mu4e-message-at-point)))
          (thread (mu4e-llm-thread-extract msg)))
     (mu4e-llm-draft--generate thread msg instructions)))
 
@@ -307,7 +312,7 @@ Optional RECIPIENT and SUBJECT provide context."
                     :subject ,subject))))
     (with-current-buffer buf
       (setq mu4e-llm-draft--worker worker))
-    (display-buffer buf)
+    (pop-to-buffer buf)
     ;; Start LLM call
     (mu4e-llm--chat
      worker
@@ -442,21 +447,33 @@ Prompts for recipient and subject, then generates the email body."
         (compose-mode mu4e-llm-draft--compose-mode)
         (recipient mu4e-llm-draft--recipient)
         (subject mu4e-llm-draft--subject)
-        (msg mu4e-llm-draft--original-message))
+        (msg mu4e-llm-draft--original-message)
+        (draft-buffer (current-buffer)))
     ;; For reply mode, we need the original message
     (when (and (not compose-mode) (not msg))
-      (error "No original message context"))
+      (user-error "No original message context"))
     ;; Switch to correct mu4e context based on original message
     ;; This ensures the signature hook sees the right account
     (when (and msg (not compose-mode))
       (when-let ((ctx (mu4e-llm--find-context-for-message msg)))
         (mu4e-context-switch nil (mu4e-context-name ctx))))
-    ;; Kill draft buffer
-    (kill-buffer (current-buffer))
-    ;; Open compose buffer (new or reply)
+    ;; Open compose buffer (new or reply).
+    ;;
+    ;; `mu4e-compose-reply' replies to the message at point, and
+    ;; `mu4e-message-at-point' answers only in a headers or view buffer.  The
+    ;; draft buffer is neither, so this used to work only because the window
+    ;; behind the draft usually held one -- and it fails outright when the
+    ;; draft was reached from a summary buffer.  The message we want is on the
+    ;; buffer already, so make that the message at point for this one call.
+    ;;
+    ;; The draft buffer is killed after this, never before: if composing
+    ;; signals, the draft text must still be there to try again with.
     (if compose-mode
         (mu4e-compose-new)
-      (mu4e-compose-reply))
+      (cl-letf (((symbol-function 'mu4e-message-at-point) (lambda (&rest _) msg)))
+        (mu4e-compose-reply)))
+    (when (buffer-live-p draft-buffer)
+      (kill-buffer draft-buffer))
     ;; Wait for compose buffer to be ready
     (run-at-time 0.1 nil
                  (lambda ()

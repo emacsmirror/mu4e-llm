@@ -152,7 +152,7 @@ rather than read from point, so a summary buffer can regenerate itself."
         ;; Return cached summary
         (let ((buf (mu4e-llm-summary--prepare-buffer msg thread type)))
           (mu4e-llm-summary--finalize buf cached)
-          (display-buffer buf)
+          (pop-to-buffer buf)
           (message "mu4e-llm: Using cached summary"))
       ;; Generate new summary
       (let* ((buf (mu4e-llm-summary--prepare-buffer msg thread type))
@@ -178,7 +178,7 @@ rather than read from point, so a summary buffer can regenerate itself."
                       `(:type ,type :thread ,thread))))
         (with-current-buffer buf
           (setq mu4e-llm-summary--current-worker worker))
-        (display-buffer buf)
+        (pop-to-buffer buf)
         ;; Start LLM call
         (mu4e-llm--chat
          worker
@@ -224,13 +224,17 @@ Shows only the critical information in 2-3 sentences."
       (mu4e-llm--summarize-message msg type))))
 
 (defun mu4e-llm-draft-reply-from-summary ()
-  "Start drafting a reply from the summary view."
+  "Draft a reply to the message this summary was generated from.
+
+There is no message at point in a summary buffer, so the stored message
+is passed through explicitly."
   (interactive)
-  (if mu4e-llm-summary--current-thread
-      (progn
-        (require 'mu4e-llm-draft)
-        (mu4e-llm-draft-reply))
-    (message "mu4e-llm: No thread context available")))
+  (unless (derived-mode-p 'mu4e-llm-summary-mode)
+    (user-error "Not in a mu4e-llm summary buffer"))
+  (unless mu4e-llm-summary--current-message
+    (user-error "This summary has no message to reply to"))
+  (require 'mu4e-llm-draft)
+  (mu4e-llm-draft-reply nil mu4e-llm-summary--current-message))
 
 (provide 'mu4e-llm-summary)
 ;;; mu4e-llm-summary.el ends here

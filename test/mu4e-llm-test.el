@@ -402,7 +402,7 @@ test can assert on the keyword arguments and not only on the content."
                ((symbol-function 'llm-chat-streaming)
                 (lambda (&rest _) 'fake-request))
                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) b))
-               ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+               ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
        ,@body)))
 
 (defun mu4e-llm-test--context-of (args)
@@ -419,7 +419,7 @@ test can assert on the keyword arguments and not only on the content."
                 (lambda (_m) (mu4e-llm-test--thread)))
                ((symbol-function 'mu4e-llm-thread-to-prompt-context)
                 (lambda (_t) "context"))
-               ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+               ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
        (let ((buf (mu4e-llm-summary--prepare-buffer ,msg (mu4e-llm-test--thread) ,type)))
          (unwind-protect
              (with-current-buffer buf ,@body)
@@ -435,7 +435,7 @@ test can assert on the keyword arguments and not only on the content."
                  (lambda (_m) (mu4e-llm-test--thread)))
                 ((symbol-function 'mu4e-llm-thread-to-prompt-context)
                  (lambda (_t) "context"))
-                ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
         (mu4e-llm-summary-regenerate)
         (should called)))))
 
@@ -449,7 +449,7 @@ test can assert on the keyword arguments and not only on the content."
                  (lambda (_m) (mu4e-llm-test--thread)))
                 ((symbol-function 'mu4e-llm-thread-to-prompt-context)
                  (lambda (_t) "context"))
-                ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
         (mu4e-llm-summary-regenerate)
         (should (eq 'executive-summary seen))))))
 
@@ -464,7 +464,7 @@ test can assert on the keyword arguments and not only on the content."
                  (lambda (_m) (mu4e-llm-test--thread)))
                 ((symbol-function 'mu4e-llm-thread-to-prompt-context)
                  (lambda (_t) "context"))
-                ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
         (mu4e-llm-summary-regenerate))
       (should-not (mu4e-llm--cache-get key)))))
 
@@ -481,7 +481,7 @@ test can assert on the keyword arguments and not only on the content."
                  (lambda (_m) (mu4e-llm-test--thread)))
                 ((symbol-function 'mu4e-llm-thread-to-prompt-context)
                  (lambda (_t) "context"))
-                ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
         (mu4e-llm-summary-regenerate)
         (should aborted)))))
 
@@ -876,7 +876,10 @@ This is the instruction that made every generated reply a bullet list."
              (with-current-buffer mu4e-llm-draft-buffer-name
                (setq captured nil)
                ,@body)
-           (kill-buffer mu4e-llm-draft-buffer-name))))))
+           ;; Tolerate an already-dead buffer: finalize kills it on success,
+           ;; which is the behaviour several of these tests are checking.
+           (when-let ((buf (get-buffer mu4e-llm-draft-buffer-name)))
+             (kill-buffer buf)))))))
 
 (ert-deftest mu4e-llm-test-shorten-instruction-is-a-variable ()
   "The fixed instructions live in the prompts file, not inline in the code.
@@ -1026,6 +1029,120 @@ summary keeps asking for exactly that."
     (let ((rendered (mu4e-llm--prompt template '((?t . "THREAD-MARKER")))))
       (should (string-match-p "THREAD-MARKER" rendered))
       (should-not (string-match-p "%t" rendered)))))
+
+;;; ==========================================================================
+;;; Focus and Reply-From-Summary Tests
+;;; ==========================================================================
+
+(defmacro mu4e-llm-test--with-real-windows (&rest body)
+  "Run BODY with the llm layer stubbed but window handling left real.
+Used by the tests that check which buffer ends up selected."
+  (declare (indent 0) (debug t))
+  `(let ((mu4e-llm-provider 'test-provider)
+         (mu4e-llm--workers (make-hash-table :test 'equal))
+         (mu4e-llm--worker-counter 0)
+         (real-require (symbol-function 'require)))
+     (cl-letf (((symbol-function 'require)
+                (lambda (feature &rest args)
+                  (unless (eq feature 'llm)
+                    (apply real-require feature args))))
+               ((symbol-function 'llm-make-chat-prompt) (lambda (p &rest _) p))
+               ((symbol-function 'llm-chat-streaming) (lambda (&rest _) 'fake))
+               ((symbol-function 'mu4e-llm-thread-extract)
+                (lambda (_m) (mu4e-llm-test--thread-with-message)))
+               ((symbol-function 'mu4e-llm-thread-to-prompt-context)
+                (lambda (_t) "context"))
+               ((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg)))
+       ,@body)))
+
+(ert-deftest mu4e-llm-test-summary-buffer-takes-focus ()
+  "`i s' should leave point in the summary, not merely show it."
+  (mu4e-llm-test--with-real-windows
+    (unwind-protect
+        (progn
+          (mu4e-llm--summarize-message 'fake-msg 'standard)
+          (should (equal mu4e-llm-summary-buffer-name (buffer-name))))
+      (kill-buffer mu4e-llm-summary-buffer-name))))
+
+(ert-deftest mu4e-llm-test-draft-buffer-takes-focus ()
+  "The draft buffer has the same defect, and the same fix."
+  (mu4e-llm-test--with-real-windows
+    (unwind-protect
+        (progn
+          (mu4e-llm-draft-reply)
+          (should (equal mu4e-llm-draft-buffer-name (buffer-name))))
+      (kill-buffer mu4e-llm-draft-buffer-name))))
+
+(ert-deftest mu4e-llm-test-draft-reply-uses-the-message-given ()
+  "When handed a message, drafting must not consult point at all."
+  (let ((asked nil) (used nil))
+    (cl-letf (((symbol-function 'mu4e-message-at-point)
+               (lambda () (setq asked t) 'from-point))
+              ((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (m) (setq used m) (mu4e-llm-test--thread-with-message)))
+              ((symbol-function 'mu4e-llm-draft--generate) (lambda (&rest _) nil)))
+      (mu4e-llm-draft-reply nil 'explicit-msg)
+      (should (eq 'explicit-msg used))
+      (should-not asked))))
+
+(ert-deftest mu4e-llm-test-draft-reply-still-defaults-to-point ()
+  "With no message argument, drafting still replies to the message at point."
+  (let ((used nil))
+    (cl-letf (((symbol-function 'mu4e-message-at-point) (lambda () 'from-point))
+              ((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (m) (setq used m) (mu4e-llm-test--thread-with-message)))
+              ((symbol-function 'mu4e-llm-draft--generate) (lambda (&rest _) nil)))
+      (mu4e-llm-draft-reply)
+      (should (eq 'from-point used)))))
+
+(ert-deftest mu4e-llm-test-reply-from-summary-passes-the-stored-message ()
+  "`r' in a summary replies to the message that summary came from."
+  (let ((got 'unset))
+    (cl-letf (((symbol-function 'mu4e-llm-draft-reply)
+               (lambda (&optional _instructions msg) (setq got msg))))
+      (mu4e-llm-test--in-summary-buffer 'stored-msg 'standard
+        (mu4e-llm-draft-reply-from-summary)))
+    (should (eq 'stored-msg got))))
+
+(ert-deftest mu4e-llm-test-reply-from-summary-outside-a-summary ()
+  "Outside a summary buffer there is nothing to reply to."
+  (with-temp-buffer
+    (should-error (mu4e-llm-draft-reply-from-summary) :type 'user-error)))
+
+(ert-deftest mu4e-llm-test-reply-from-summary-without-a-message ()
+  "A summary buffer whose stored message is nil says so plainly."
+  (mu4e-llm-test--in-summary-buffer nil 'standard
+    (should-error (mu4e-llm-draft-reply-from-summary) :type 'user-error)))
+
+(ert-deftest mu4e-llm-test-finalize-composes-from-the-stored-message ()
+  "Finalize must not read the message at point.
+
+`mu4e-compose-reply' replies to the message at point, and a draft buffer
+has none.  Reaching the draft from a summary used to signal here, after
+the draft text had already been destroyed."
+  (let ((asked nil) (replied-to nil))
+    (cl-letf (((symbol-function 'mu4e-message-at-point)
+               (lambda (&rest _) (setq asked t) (user-error "No message at point")))
+              ((symbol-function 'mu4e-compose-reply)
+               (lambda (&rest _) (setq replied-to (mu4e-message-at-point))))
+              ((symbol-function 'mu4e-llm--find-context-for-message) (lambda (_m) nil))
+              ((symbol-function 'run-at-time) (lambda (&rest _) nil)))
+      (mu4e-llm-test--in-draft-buffer
+        (setq mu4e-llm-draft--original-message 'stored-msg)
+        (mu4e-llm-draft-finalize)
+        (should (eq 'stored-msg replied-to))
+        (should-not asked)))))
+
+(ert-deftest mu4e-llm-test-finalize-keeps-the-draft-when-composing-fails ()
+  "A failed compose must not take the draft text with it."
+  (cl-letf (((symbol-function 'mu4e-compose-reply)
+             (lambda (&rest _) (error "compose exploded")))
+            ((symbol-function 'mu4e-llm--find-context-for-message) (lambda (_m) nil))
+            ((symbol-function 'run-at-time) (lambda (&rest _) nil)))
+    (mu4e-llm-test--in-draft-buffer
+      (setq mu4e-llm-draft--original-message 'stored-msg)
+      (should-error (mu4e-llm-draft-finalize))
+      (should (buffer-live-p (get-buffer mu4e-llm-draft-buffer-name))))))
 
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here
