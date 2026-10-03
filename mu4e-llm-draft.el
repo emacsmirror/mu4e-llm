@@ -37,7 +37,6 @@
 (defvar mu4e-contexts)
 
 ;; Variables from mu4e-llm-config (suppress byte-compile warnings)
-(defvar mu4e-llm-draft-persona-descriptions)
 
 
 ;;; --- Context Matching ---
@@ -228,8 +227,6 @@ Returns the context object, or nil if no match found."
          (identity (mu4e-llm--user-identity))
          (user-name (car identity))
          (user-email (cdr identity))
-         (persona-desc (cdr (assq mu4e-llm-draft-persona
-                                  mu4e-llm-draft-persona-descriptions)))
          (context (mu4e-llm-thread-to-prompt-context thread))
          (extra-instructions (if instructions
                                  (format "\nAdditional instructions: %s" instructions)
@@ -238,7 +235,6 @@ Returns the context object, or nil if no match found."
                   mu4e-llm-draft-reply-prompt
                   `((?n . ,user-name)
                     (?e . ,user-email)
-                    (?p . ,(or persona-desc ""))
                     (?t . ,context)
                     (?i . ,extra-instructions))))
          (worker (mu4e-llm--create-worker
@@ -280,8 +276,6 @@ Optional RECIPIENT and SUBJECT provide context."
          (identity (mu4e-llm--user-identity))
          (user-name (car identity))
          (user-email (cdr identity))
-         (persona-desc (cdr (assq mu4e-llm-draft-persona
-                                  mu4e-llm-draft-persona-descriptions)))
          (recipient-context (if recipient
                                 (format "The recipient is: %s" recipient)
                               ""))
@@ -289,7 +283,6 @@ Optional RECIPIENT and SUBJECT provide context."
                   mu4e-llm-draft-compose-prompt
                   `((?n . ,user-name)
                     (?e . ,user-email)
-                    (?p . ,(or persona-desc ""))
                     (?i . ,instructions)
                     (?r . ,recipient-context))))
          (worker (mu4e-llm--create-worker

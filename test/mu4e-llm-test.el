@@ -19,6 +19,7 @@
 (require 'mu4e-llm-thread)
 (require 'mu4e-llm-core)
 (require 'mu4e-llm-summary)
+(require 'mu4e-llm-draft)
 (require 'mu4e-llm)
 
 ;;; ==========================================================================
@@ -198,11 +199,6 @@
     (should (stringp (car lang)))
     (should (stringp (cdr lang)))))
 
-(ert-deftest mu4e-llm-test-config-persona ()
-  "Default persona should be valid."
-  (should (memq mu4e-llm-draft-persona
-                '(professional friendly formal concise))))
-
 ;;; ==========================================================================
 ;;; Worker Tests
 ;;; ==========================================================================
@@ -370,6 +366,48 @@ ID defaults to \"m1\" and COUNT to 1."
    :messages nil
    :participant-count 1
    :message-count (or count 1)))
+
+(defun mu4e-llm-test--thread-with-message (&optional body-text)
+  "Build a thread carrying one real message.
+`mu4e-llm-draft--prepare-buffer' reads the last message\='s sender and body,
+so the draft tests cannot use the empty `mu4e-llm-test--thread'."
+  (make-mu4e-llm-thread
+   :message-id "m1"
+   :subject "Test subject"
+   :messages (list (make-mu4e-llm-thread-message
+                    :from "Someone <someone@example.org>"
+                    :to "me@example.org"
+                    :date "2026-01-01"
+                    :subject "Test subject"
+                    :body (or body-text "THREAD-BODY-MARKER")))
+   :participant-count 2
+   :message-count 1))
+
+(defmacro mu4e-llm-test--capturing-chat-prompt (captured &rest body)
+  "Run BODY with the llm layer stubbed, recording each prompt in CAPTURED.
+Each entry is the full argument list `llm-make-chat-prompt' received, so a
+test can assert on the keyword arguments and not only on the content."
+  (declare (indent 1) (debug t))
+  `(let ((mu4e-llm-provider 'test-provider)
+         (real-require (symbol-function 'require)))
+     (cl-letf (;; Only `llm' is faked.  A blanket no-op breaks org-mode,
+               ;; which loads parts of itself on demand, and the draft
+               ;; buffer derives from org-mode.
+               ((symbol-function 'require)
+                (lambda (feature &rest args)
+                  (unless (eq feature 'llm)
+                    (apply real-require feature args))))
+               ((symbol-function 'llm-make-chat-prompt)
+                (lambda (&rest args) (push args ,captured) (car args)))
+               ((symbol-function 'llm-chat-streaming)
+                (lambda (&rest _) 'fake-request))
+               ((symbol-function 'pop-to-buffer) (lambda (b &rest _) b))
+               ((symbol-function 'display-buffer) (lambda (b &rest _) b)))
+       ,@body)))
+
+(defun mu4e-llm-test--context-of (args)
+  "Return the :context keyword from a captured ARGS list."
+  (plist-get (cdr args) :context))
 
 (defmacro mu4e-llm-test--in-summary-buffer (msg type &rest body)
   "Prepare a summary buffer for MSG and TYPE, then run BODY inside it."
@@ -727,6 +765,95 @@ missing to `format-spec', so the call site passes an empty string."
     (should (string-match-p "BODY-MARKER" rendered))
     (should (string-match-p "Subject: *\n" rendered))
     (should-not (string-match-p "%u" rendered))))
+
+;;; ==========================================================================
+;;; Voice Tests (mu4e-llm-prompt-voice)
+;;;
+;;; Wiring tests prove where the voice goes.  Deletion guards only prove a
+;;; sentence is still present -- they cannot tell "reply in the language of
+;;; the original" from "ignore the language of the original".  Nothing here
+;;; can tell whether a draft reads well; that judgement is the user's, which
+;;; is what the plainer key is for.
+;;; ==========================================================================
+
+(ert-deftest mu4e-llm-test-voice-reaches-writing-operations ()
+  "Drafting, composing and refining each get the voice as system prompt."
+  (dolist (type '(draft compose refine))
+    (should (equal mu4e-llm-prompt-voice (mu4e-llm--voice-for type)))))
+
+(ert-deftest mu4e-llm-test-voice-skips-reporting-operations ()
+  "Summarising and translating report what someone else wrote.
+Telling the model to write in the user's voice would be wrong there."
+  (dolist (type '(summary executive-summary translate))
+    (should-not (mu4e-llm--voice-for type))))
+
+(ert-deftest mu4e-llm-test-chat-passes-voice-as-context ()
+  "A draft worker's chat prompt carries the voice in :context."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (mu4e-llm-test--capturing-chat-prompt captured
+      (mu4e-llm--chat (mu4e-llm--create-worker 'draft nil) "task" nil nil))
+    (should (equal mu4e-llm-prompt-voice
+                   (mu4e-llm-test--context-of (car captured))))))
+
+(ert-deftest mu4e-llm-test-chat-passes-no-context-for-summary ()
+  "A summary worker's chat prompt carries no system prompt."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (mu4e-llm-test--capturing-chat-prompt captured
+      (mu4e-llm--chat (mu4e-llm--create-worker 'summary nil) "task" nil nil))
+    (should-not (mu4e-llm-test--context-of (car captured)))))
+
+(ert-deftest mu4e-llm-test-chat-passes-no-context-for-translate ()
+  "A translate worker's chat prompt carries no system prompt."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (mu4e-llm-test--capturing-chat-prompt captured
+      (mu4e-llm--chat (mu4e-llm--create-worker 'translate nil) "task" nil nil))
+    (should-not (mu4e-llm-test--context-of (car captured)))))
+
+(ert-deftest mu4e-llm-test-personas-are-gone ()
+  "The persona variables were removed in favour of one voice."
+  (should-not (boundp 'mu4e-llm-draft-persona))
+  (should-not (boundp 'mu4e-llm-draft-persona-descriptions)))
+
+(ert-deftest mu4e-llm-test-draft-reply-still-reaches-the-provider ()
+  "Removing the personas must not have broken the drafting call site."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (cl-letf (((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (_m) (mu4e-llm-test--thread-with-message)))
+              ((symbol-function 'mu4e-llm-thread-to-prompt-context)
+               (lambda (_t) "THREAD-MARKER"))
+              ((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg)))
+      (mu4e-llm-test--capturing-chat-prompt captured
+        (mu4e-llm-draft-reply)))
+    (should captured)
+    (should (string-match-p "THREAD-MARKER" (car (car captured))))
+    (should (equal mu4e-llm-prompt-voice
+                   (mu4e-llm-test--context-of (car captured))))
+    (kill-buffer mu4e-llm-draft-buffer-name)))
+
+;;; --- Deletion guards ---
+
+(ert-deftest mu4e-llm-test-guard-voice-names-the-language-rule ()
+  "Deletion guard: the voice still tells the model which language to use."
+  (should (string-match-p "same language" mu4e-llm-prompt-voice)))
+
+(ert-deftest mu4e-llm-test-guard-voice-asks-for-the-email-only ()
+  "Deletion guard: the voice still forbids preamble and commentary."
+  (should (string-match-p "Return only the email body" mu4e-llm-prompt-voice)))
+
+(ert-deftest mu4e-llm-test-guard-no-prompt-asks-for-bullets ()
+  "Deletion guard: prose is the default; bullets are opt-in.
+This is the instruction that made every generated reply a bullet list."
+  (dolist (prompt (list mu4e-llm-draft-reply-prompt
+                        mu4e-llm-draft-compose-prompt))
+    (should-not (string-match-p "bullet" prompt))))
 
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here

@@ -106,29 +106,9 @@ Default is 1 hour (3600 seconds)."
 
 ;;; --- Draft Settings ---
 
-(defcustom mu4e-llm-draft-persona 'professional
-  "Default persona style for draft replies.
-This affects the tone and formality of generated replies."
-  :type '(choice (const :tag "Professional" professional)
-                 (const :tag "Friendly" friendly)
-                 (const :tag "Formal" formal)
-                 (const :tag "Concise" concise))
-  :group 'mu4e-llm)
-
 (defcustom mu4e-llm-draft-include-summary t
   "Whether to include thread summary in draft buffer."
   :type 'boolean
-  :group 'mu4e-llm)
-
-(defcustom mu4e-llm-draft-persona-descriptions
-  '((professional . "Write in a professional, business-appropriate tone. Be courteous and clear.")
-    (friendly . "Write in a warm, friendly tone while remaining professional. Be personable.")
-    (formal . "Write in a formal, highly professional tone suitable for executive communication.")
-    (concise . "Write as briefly as possible while being clear. Minimize pleasantries."))
-  "Alist mapping persona symbols to their prompt descriptions.
-Each entry is (PERSONA . DESCRIPTION) where PERSONA is a symbol
-and DESCRIPTION is the text inserted into prompts."
-  :type '(alist :key-type symbol :value-type string)
   :group 'mu4e-llm)
 
 ;;; --- Translation Settings ---

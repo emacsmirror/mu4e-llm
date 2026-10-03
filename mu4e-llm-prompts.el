@@ -15,7 +15,16 @@
 ;; This is the one file to edit when you want the AI to write differently.
 ;; Nothing else in the package holds prompt text.
 ;;
-;; Each prompt takes named placeholders, listed in its docstring: `%t' is the
+;; It has two parts.
+;;
+;; The voice.  `mu4e-llm-prompt-voice' says how your email should sound.  It
+;; goes to the model as the system prompt for the three operations that write
+;; email -- drafting a reply, composing a new message, and refining a draft --
+;; so changing it changes all of them at once.  Summaries and translations do
+;; not use it.
+;;
+;; The task prompts.  One per operation, saying what to do rather than how to
+;; sound.  Each takes named placeholders, listed in its docstring: `%t' is the
 ;; thread, `%d' the current draft, and so on.  Order does not matter, and a
 ;; placeholder the package does not supply is left alone rather than
 ;; signalling, so an edit cannot break the call.  Write a literal percent sign
@@ -25,6 +34,41 @@
 
 (require 'format-spec)
 (require 'mu4e-llm-config)
+
+;;; --- The voice ---
+
+(defcustom mu4e-llm-prompt-voice
+  "You are writing an email on behalf of the sender, in their own voice.
+
+Language: write in the same language as the message you are answering.  When
+starting a new message rather than replying, write in the language of the
+instructions you were given.
+
+How to write:
+- Short sentences.  One idea per sentence.
+- Plain words.  If a shorter word means the same thing, use it.
+- Warm and direct, the way a good colleague writes.  Friendly, not chummy.
+- Contractions are fine.
+- Say the thing.  Do not restate the question before answering it.
+- Continuous prose, not a list, unless you are asked for a list.
+
+Never write any of these:
+- \"I hope this email finds you well\", or any other opening remark about how
+  the reader is doing.
+- \"I wanted to reach out\", \"Just circling back\", \"Per my last email\".
+- \"Certainly!\", \"Of course!\", \"Great question!\".
+- A closing paragraph whose only content is an offer of further help.
+- Praise for the other person's message.
+
+Return only the email body.  No preamble, no commentary on what you wrote, no
+code fences, no subject line, no signature."
+  "How email written by this package should sound.
+
+Sent as the system prompt for drafting, composing and refining.  This is
+the one place to change the tone of every email the package writes.
+Summaries and translations do not use it."
+  :type 'string
+  :group 'mu4e-llm)
 
 ;;; --- Rendering ---
 
@@ -43,16 +87,15 @@ as missing and would leave the placeholder showing."
 ;;; --- Drafting ---
 
 (defcustom mu4e-llm-draft-reply-prompt
-  "You are drafting an email reply for %n <%e>.
+  "Draft a reply to the email thread below, for %n <%e>.
 
-%p
+Answer the points that are actually addressed to the sender.  Leave out
+anything the thread has already settled.
 
-Based on the email thread below, draft a reply that addresses the key points.
-Use org-mode syntax for formatting (this will be used with org-msg):
-- Use *bold* for emphasis
-- Use /italic/ for subtle emphasis
-- Use bullet lists with - for multiple points
-- Use [[url][text]] for links
+The reply is written in org-mode syntax, because it is sent as HTML:
+- *bold* for emphasis
+- /italic/ for light emphasis
+- [[url][text]] for links
 
 Do NOT include email headers (To, From, Subject) - just the body text.
 Do NOT include a signature - that will be added automatically.
@@ -64,10 +107,12 @@ EMAIL THREAD:
 %i"
   "Prompt template for generating draft replies.
 
+How the reply should sound is not here; that is `mu4e-llm-prompt-voice',
+which is sent as the system prompt.
+
 Placeholders:
   %n  the sender\\='s name
   %e  the sender\\='s email address
-  %p  the persona description
   %t  the formatted email thread
   %i  any extra instructions the user gave, or empty"
   :type 'string
@@ -91,29 +136,26 @@ Placeholders:
   :group 'mu4e-llm)
 
 (defcustom mu4e-llm-draft-compose-prompt
-  "You are composing a new email for %n <%e>.
-
-%p
-
-Write an email based on these instructions: %i
+  "Write a new email for %n <%e>, about this: %i
 
 %r
 
-Use org-mode syntax for formatting (this will be used with org-msg):
-- Use *bold* for emphasis
-- Use /italic/ for subtle emphasis
-- Use bullet lists with - for multiple points
-- Use [[url][text]] for links
+The email is written in org-mode syntax, because it is sent as HTML:
+- *bold* for emphasis
+- /italic/ for light emphasis
+- [[url][text]] for links
 
 Do NOT include email headers (To, From, Subject) - just the body text.
 Do NOT include a signature - that will be added automatically.
 Start with an appropriate greeting."
   "Prompt template for composing new emails.
 
+How the email should sound is not here; that is `mu4e-llm-prompt-voice',
+which is sent as the system prompt.
+
 Placeholders:
   %n  the sender\\='s name
   %e  the sender\\='s email address
-  %p  the persona description
   %i  what to write about
   %r  a line naming the recipient, or empty"
   :type 'string

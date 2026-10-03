@@ -17,6 +17,7 @@
 
 (require 'cl-lib)
 (require 'mu4e-llm-config)
+(require 'mu4e-llm-prompts)
 
 ;; Forward declare llm functions to avoid byte-compile warnings
 (declare-function llm-chat-streaming "llm")
@@ -106,6 +107,17 @@ rest of the user\='s AI tools, so it is copied rather than modified."
         (setf (cl-struct-slot-value (type-of copy) 'chat-model copy) model)
         copy))))
 
+(defconst mu4e-llm--writing-operations '(draft compose refine)
+  "Operation types that write email in the user\\='s own voice.
+These get `mu4e-llm-prompt-voice' as their system prompt.  Summarising
+and translating do not: they report what someone else wrote.")
+
+(defun mu4e-llm--voice-for (type)
+  "Return the system prompt for operation TYPE, or nil.
+Nil for everything that is not writing an email as the user."
+  (when (memq type mu4e-llm--writing-operations)
+    mu4e-llm-prompt-voice))
+
 (defun mu4e-llm--reasoning-params-for (type)
   "Return request parameters carrying the reasoning level for TYPE.
 Nil when `mu4e-llm-operation-models' sets no level for TYPE."
@@ -187,6 +199,7 @@ Returns the llm request object."
          (provider (mu4e-llm--provider-for type))
          (chat-prompt (llm-make-chat-prompt
                        prompt
+                       :context (mu4e-llm--voice-for type)
                        :non-standard-params (mu4e-llm--reasoning-params-for type)))
          (accumulated "")
          (request
