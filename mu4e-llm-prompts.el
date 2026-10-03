@@ -280,15 +280,29 @@ Placeholders:
 ;;; --- Summaries ---
 
 (defcustom mu4e-llm-summary-standard-prompt
-  "Summarize the following email thread concisely (around 200 words).
+  "Summarize the email thread below in about 200 words.
 
-Include:
-- Main topic and purpose of the discussion
-- Key points and decisions made
-- Action items or requests (if any)
-- Current status or next steps needed
+Use these sections, in this order. Put each heading on its own line, and
+leave a blank line between one section and the next. Skip a section
+entirely when the thread gives it nothing -- do not write a heading with
+\"none\" underneath it.
 
-Use bullet points for clarity. Focus on what's most important for someone who needs to quickly understand this thread.
+What this is about
+  One or two sentences.
+
+Key points
+  Short bullets, using \"- \".
+
+Decisions
+  What was settled, and by whom. Short bullets.
+
+Action items
+  Who needs to do what, and by when where a date was named. Short bullets.
+
+Where it stands
+  One or two sentences on the current state and what happens next.
+
+Write for someone who needs to understand this thread quickly.
 
 EMAIL THREAD:
 %t"

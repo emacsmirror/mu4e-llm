@@ -997,5 +997,35 @@ would overwrite the legend -- and the draft boundary would move."
                      "C-c C-n" "C-c C-b" "C-c C-k"))
         (should (string-match-p (regexp-quote key) text))))))
 
+;;; ==========================================================================
+;;; Summary Prompt Tests
+;;; ==========================================================================
+
+(ert-deftest mu4e-llm-test-guard-summary-asks-for-blank-lines ()
+  "Deletion guard: the standard summary still asks for separated sections.
+Without it the model returns one undifferentiated run of bullets."
+  (should (string-match-p "blank line" mu4e-llm-summary-standard-prompt)))
+
+(ert-deftest mu4e-llm-test-guard-summary-names-its-sections ()
+  "Deletion guard: the section headings are still spelled out."
+  (dolist (heading '("What this is about" "Key points" "Decisions"
+                     "Action items" "Where it stands"))
+    (should (string-match-p (regexp-quote heading)
+                            mu4e-llm-summary-standard-prompt))))
+
+(ert-deftest mu4e-llm-test-executive-summary-untouched ()
+  "Two or three sentences have no sections to separate, so the executive
+summary keeps asking for exactly that."
+  (should (string-match-p "2-3 sentences" mu4e-llm-summary-executive-prompt))
+  (should-not (string-match-p "blank line" mu4e-llm-summary-executive-prompt)))
+
+(ert-deftest mu4e-llm-test-summary-prompt-carries-the-thread ()
+  "Both summary prompts still render the thread into the request."
+  (dolist (template (list mu4e-llm-summary-standard-prompt
+                          mu4e-llm-summary-executive-prompt))
+    (let ((rendered (mu4e-llm--prompt template '((?t . "THREAD-MARKER")))))
+      (should (string-match-p "THREAD-MARKER" rendered))
+      (should-not (string-match-p "%t" rendered)))))
+
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here
