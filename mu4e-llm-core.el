@@ -4,7 +4,7 @@
 
 ;; Author: Dr. Sandeep Sadanandan <sillyfellow@whybenormal.org>
 ;; URL: https://github.com/sillyfellow/mu4e-llm
-;; Version: 0.1.0
+;; Version: 0.2.0
 
 ;; This file is NOT part of GNU Emacs.
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-mu4e-llm is an Emacs Lisp package providing AI-powered email assistance for mu4e. It integrates LLM providers (OpenAI, Claude, Ollama, etc.) via the llm.el library to enable thread summarization, smart reply drafting, and email translation.
+mu4e-llm is an Emacs Lisp package providing AI-powered email assistance for mu4e. It integrates LLM providers via the llm.el library to enable thread summarization, smart reply drafting, and email translation.
 
 ## Build, Test, and Lint Commands
 
@@ -24,10 +24,11 @@ CI tests against Emacs 28.2, 29.1, and 29.4.
 
 - **mu4e-llm.el** - Entry point, keymap setup, minor mode, lazy-loading via autoloads
 - **mu4e-llm-config.el** - Configuration variables and customization group
+- **mu4e-llm-prompts.el** - Every prompt the package sends, plus `mu4e-llm-prompt-voice`. The only file holding prompt text
 - **mu4e-llm-core.el** - Worker lifecycle, LLM interface, provider resolution, TTL-based caching
 - **mu4e-llm-thread.el** - Thread extraction, message body cleanup (quote/signature removal)
 - **mu4e-llm-summary.el** - Thread summarization with streaming output
-- **mu4e-llm-draft.el** - Smart reply generation with persona system and org-mode formatting
+- **mu4e-llm-draft.el** - Smart reply generation, refinement keys, and org-mode formatting
 - **mu4e-llm-translate.el** - Message and thread translation
 
 ### Key Patterns
@@ -60,8 +61,11 @@ CI tests against Emacs 28.2, 29.1, and 29.4.
 4. Add tests if pure function
 
 ### New Configuration Option
-1. Add `defcustom` in mu4e-llm-config.el
+1. Add `defcustom` in mu4e-llm-config.el -- or in mu4e-llm-prompts.el if it is prompt text
 2. Reference via `mu4e-llm-<option-name>`
+
+### Changing What the AI Writes
+Everything the model is told lives in mu4e-llm-prompts.el. `mu4e-llm-prompt-voice` is the system prompt for drafting, composing and refining, so it is the single place that sets tone. Summaries and translations deliberately do not use it. Prompts take named `format-spec` letters, not positional `%s`; a literal percent is `%%`.
 
 ## Important Notes
 

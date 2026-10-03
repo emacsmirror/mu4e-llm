@@ -111,11 +111,19 @@ To hang the commands under a shared prefix map of your own, set
 
 | Key | Command | Description |
 |-----|---------|-------------|
-| `C-c C-r` | Refine | Refine with custom instruction |
-| `C-c C-s` | Shorten | Make draft more concise |
-| `C-c C-p` | Polite | Make draft more polite/professional |
-| `C-c C-f` | Finalize | Accept draft and open in compose |
-| `C-c C-k` | Cancel | Discard draft |
+| `C-c C-r` | Refine | Refine with your own instruction |
+| `C-c C-s` | Shorten | Cut it down without losing anything it says |
+| `C-c C-p` | Polite | Warmer, without getting longer |
+| `C-c C-n` | Plainer | Same meaning, plainer words |
+| `C-c C-b` | Bullets | Turn the body into a list |
+| `C-c C-t` | Summary | Show or hide the thread summary |
+| `C-c C-f` | Finalize | Accept the draft and open a compose buffer |
+| `C-c C-k` | Cancel | Discard the draft |
+
+`C-c C-l` is left alone: it is `org-insert-link`, and drafts are org syntax.
+
+Replies come back as prose. `C-c C-b` is how you ask for bullets on the
+emails where a list reads better.
 
 ### Workflow Diagrams
 
@@ -124,15 +132,15 @@ To hang the commands under a shared prefix map of your own, set
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a6fa5', 'primaryTextColor': '#fff', 'lineColor': '#5c7caa'}}}%%
 flowchart TD
-    A["📧 View email"] -->|"C-c a e r"| B["🤖 Generate draft"]
-    B --> C["📝 Review in *draft* buffer"]
+    A["📧 View email"] -->|"i r"| B["🤖 Generate draft"]
+    B --> C["📝 Review in the draft buffer"]
 
-    C --> D{Done?}
+    C --> D{"Done?"}
 
-    D -->|No| E["🔄 Refine"]
-    E -->|"C-c C-r/s/p"| B
+    D -->|"No"| E["🔄 Refine"]
+    E -->|"C-c C-r, C-c C-s, C-c C-p, C-c C-n, C-c C-b"| B
 
-    D -->|Yes| F{Accept?}
+    D -->|"Yes"| F{"Accept?"}
     F -->|"C-c C-f"| G["✉️ Open in compose"]
     F -->|"C-c C-k"| H["🗑️ Discard"]
 
@@ -239,9 +247,6 @@ combination.
 ### Draft Settings
 
 ```elisp
-;; Default persona style: professional, friendly, formal, concise
-(setq mu4e-llm-draft-persona 'professional)
-
 ;; Include thread summary in draft buffer
 (setq mu4e-llm-draft-include-summary t)
 ```
@@ -262,36 +267,78 @@ combination.
 (setq mu4e-llm-default-target-language "en")
 ```
 
-### Prompt Customization
+### Changing how the AI writes
 
-All LLM prompts are customizable via `M-x customize-group RET mu4e-llm RET`:
+Every prompt lives in one file, `mu4e-llm-prompts.el`. Nothing else in the
+package holds prompt text, so that is the only file to open.
 
-| Variable | Purpose |
-|----------|---------|
-| `mu4e-llm-summary-standard-prompt` | Standard thread summary |
-| `mu4e-llm-summary-executive-prompt` | Executive summary |
-| `mu4e-llm-draft-reply-prompt` | Reply drafting |
-| `mu4e-llm-draft-refine-prompt` | Draft refinement |
-| `mu4e-llm-draft-compose-prompt` | New email composition |
-| `mu4e-llm-draft-persona-descriptions` | Persona style definitions |
-| `mu4e-llm-translate-message-prompt` | Single message translation |
-| `mu4e-llm-translate-thread-prompt` | Thread translation |
-| `mu4e-llm-translate-text-prompt` | Text/region translation |
+**To change how your email sounds, edit one variable.**
+`mu4e-llm-prompt-voice` holds the whole tone instruction: short sentences,
+plain words, warm and direct, prose rather than lists, reply in the language
+of the message being answered, and a list of the openings never to write. It
+is sent as the system prompt for the three operations that write email, so
+one edit changes all of them.
 
-Example customization:
+```elisp
+;; A blunter house style
+(setq mu4e-llm-prompt-voice
+      (concat mu4e-llm-prompt-voice
+              "\n\nNever use more than three sentences in a paragraph."))
+```
+
+Summaries and translations do not use the voice. They report what someone
+else wrote, so writing in your voice would be wrong.
+
+#### The task prompts
+
+Each says what to do, not how to sound.
+
+| Variable | Used for |
+|---|---|
+| `mu4e-llm-draft-reply-prompt` | Replying to a thread |
+| `mu4e-llm-draft-compose-prompt` | Writing a new email |
+| `mu4e-llm-draft-refine-prompt` | Every refinement, including the four below |
+| `mu4e-llm-draft-shorten-instruction` | `C-c C-s` |
+| `mu4e-llm-draft-polite-instruction` | `C-c C-p` |
+| `mu4e-llm-draft-plainer-instruction` | `C-c C-n` |
+| `mu4e-llm-draft-bullets-instruction` | `C-c C-b` |
+| `mu4e-llm-summary-standard-prompt` | `i s`, the detailed summary |
+| `mu4e-llm-summary-executive-prompt` | `i S`, the two-line summary |
+| `mu4e-llm-translate-message-prompt` | Translating one message |
+| `mu4e-llm-translate-thread-prompt` | Translating a thread |
+| `mu4e-llm-translate-text-prompt` | Translating a region |
+
+All of them are also reachable through
+`M-x customize-group RET mu4e-llm RET`.
+
+#### Placeholders
+
+A prompt marks where the package should drop something in with a letter
+after a percent sign. Each prompt's docstring lists the letters it takes;
+`C-h v` on the variable shows them.
+
+| | |
+|---|---|
+| `%t` | the email thread |
+| `%d` | the draft being refined |
+| `%i` | the instruction, or what to write about |
+| `%n` `%e` | your name, your email address |
+| `%l` | the language to translate into |
+| `%f` `%u` `%b` | a message's sender, subject, body |
+| `%r` | a line naming the recipient |
+
+Order does not matter, and you can leave one out. A letter the package does
+not supply is left alone rather than breaking the call. To put a real
+percent sign in a prompt, write it twice: `%%`.
 
 ```elisp
 ;; More detailed summaries
 (setq mu4e-llm-summary-standard-prompt
-      "Provide an extremely detailed summary of this email thread.
-Include every decision, action item, and participant opinion.
+      "Summarise this thread in detail. Include every decision, every action
+item, and who holds each one.
 
 EMAIL THREAD:
-%s")
-
-;; Custom persona
-(add-to-list 'mu4e-llm-draft-persona-descriptions
-             '(casual . "Write casually, like texting a friend."))
+%t")
 ```
 
 ## Provider Setup

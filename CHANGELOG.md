@@ -5,9 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-03
+
+This release changes how the AI writes, and removes two settings. Read
+"Removed" and "Changed" before upgrading.
+
+### Removed
+
+- **BREAKING. `mu4e-llm-draft-persona` and
+  `mu4e-llm-draft-persona-descriptions` are gone.** They were four
+  adjectives -- "Write in a professional, business-appropriate tone" and
+  three like it -- and adjectives tell a model almost nothing. The default
+  was `professional`, so every draft got the vaguest of the four whether or
+  not the email was business correspondence.
+
+  `mu4e-llm-prompt-voice` replaces them. If you had set a persona, set the
+  voice to describe how you write instead; it takes habits rather than
+  labels, and one edit changes every email the package writes.
+
+### Changed
+
+- **BREAKING. Prompts take named placeholders instead of positional `%s`.**
+  A customised prompt written against the old shape will keep its `%s` and
+  send it to the model as literal text, with no error. Check any prompt you
+  have set. Each prompt's docstring lists the letters it takes: `%t` is the
+  thread, `%d` the draft, `%i` the instruction, and so on. A literal percent
+  sign is now written `%%`.
+
+  Order no longer matters and an unsupplied letter is left alone, so an edit
+  can no longer break the call -- which is also why a stale `%s` passes
+  silently.
+
+- **Every prompt moved to `mu4e-llm-prompts.el`.** They were spread through
+  `mu4e-llm-config.el` among provider, cache and keybinding settings. There
+  is now one file to open.
+
+- **Replies are prose.** The reply prompt used to instruct the model to use
+  bullet lists, so every generated reply was a bullet list. Ask for bullets
+  with `C-c C-b` when a list reads better.
+
+- **Replies are written in the language of the message being answered.** No
+  prompt mentioned language before.
+
+- **Refine, shorten and polite do what their names say.** The refine prompt
+  said "keep the same basic structure and points", which contradicted every
+  shortening instruction sent through it. It now knows an email has a
+  greeting, a body and a sign-off, and applies the instruction to the body:
+  "make it one line" means the body, not the whole email.
+
+- **The standard summary has sections**, separated by blank lines, instead of
+  one run of bullet points.
+
+### Added
+
+- **`mu4e-llm-prompt-voice`**: how email written by this package should
+  sound. Sent as the system prompt for drafting, composing and refining.
+  Summaries and translations do not use it.
+- **`C-c C-n` in the draft buffer, plainer**: same meaning, plainer words.
+- **`C-c C-b` in the draft buffer, bullets**: turns the body into a list and
+  leaves the greeting and sign-off as prose.
 
 ### Fixed
+
+- **The signature matched the wrong account.** Fixed in the Emacs
+  configuration rather than here, but it affects this package's finalize
+  step: the hook that chose the signature ran after org-msg had already
+  inserted one, so every compose carried the previous compose's signature.
+- **The summary and draft buffers take focus.** They used `display-buffer`,
+  which shows a buffer without selecting it.
+- **`r` in the summary buffer replies.** It called the drafting command with
+  no arguments, which reads the message at point, and a summary buffer has
+  none. The message was stored on the buffer the whole time.
+- **Finalizing a draft no longer destroys it on failure.** It killed the
+  draft buffer and then called `mu4e-compose-reply`, which also reads the
+  message at point. That worked only when the window behind the draft
+  happened to hold a mu4e buffer. It now replies to the stored message, and
+  kills the draft only once composing has succeeded.
 
 - **Provider errors are reported, not swallowed**: the streaming error
   callback took one argument where llm.el passes two, so every API failure
