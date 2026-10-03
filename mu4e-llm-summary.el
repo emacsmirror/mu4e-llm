@@ -26,9 +26,6 @@
 (declare-function mu4e-message-at-point "mu4e-message")
 (declare-function mu4e-llm-draft-reply "mu4e-llm-draft")
 
-;; Variables from mu4e-llm-config (suppress byte-compile warnings)
-
-
 ;;; --- Summary Buffer Mode ---
 
 (defvar mu4e-llm-summary-mode-map

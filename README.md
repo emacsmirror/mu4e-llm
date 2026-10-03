@@ -327,10 +327,16 @@ after a percent sign. Each prompt's docstring lists the letters it takes;
 | `%l` | the language to translate into |
 | `%f` `%u` `%b` | a message's sender, subject, body |
 | `%r` | a line naming the recipient |
+| `%x` | the text or region to translate |
 
 Order does not matter, and you can leave one out. A letter the package does
 not supply stays as it is, rather than breaking the call. To put a real
 percent sign in a prompt, write it twice: `%%`.
+
+Two short labels sit alongside the templates:
+`mu4e-llm-draft-instructions-label` introduces your extra instructions, and
+`mu4e-llm-draft-recipient-label` introduces the recipient. They are here so
+that every word the model reads really does live in one file.
 
 ```elisp
 ;; More detailed summaries

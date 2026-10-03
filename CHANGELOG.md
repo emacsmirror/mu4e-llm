@@ -25,6 +25,11 @@ This release changes how the AI writes, and removes two settings. Read
 
 ### Changed
 
+- **Finalize replies to the message you drafted from, not the message at
+  point.** This is what makes `r` in the summary buffer work. The trade-off:
+  the message is a snapshot taken when drafting began, so if you read the
+  message in between, maildir renames the file and finalize can fail where it
+  previously worked. The draft survives and the error says so.
 - **BREAKING. Prompts take named placeholders instead of positional `%s`.**
   A customised prompt written against the old shape will keep its `%s` and
   send it to the model as literal text, with no error. Check any prompt you
@@ -58,6 +63,15 @@ This release changes how the AI writes, and removes two settings. Read
 
 ### Added
 
+- **The draft buffer is read-only while the model is writing.** It takes focus
+  now, and every streamed chunk rewrites the whole draft region, so anything
+  typed during generation was silently discarded on the next chunk. Finalizing
+  mid-stream also used to hand the compose buffer a truncated reply ending in
+  the streaming indicator; it now says so and waits.
+- **`mu4e-llm-draft-instructions-label` and `mu4e-llm-draft-recipient-label`**:
+  the two short strings the package wraps around your instructions and the
+  recipient. They were inline in the code, which made the claim that one file
+  holds every prompt untrue.
 - **`mu4e-llm-prompt-voice`**: how email written by this package should
   sound. Sent as the system prompt for drafting, composing and refining.
   Summaries and translations do not use it.
@@ -76,6 +90,20 @@ This release changes how the AI writes, and removes two settings. Read
 - **`r` in the summary buffer replies.** It called the drafting command with
   no arguments, which reads the message at point, and a summary buffer has
   none. The message was stored on the buffer the whole time.
+- **A reply drafted after an abandoned compose is a reply.** The draft buffer
+  is reused and `erase-buffer` does not clear buffer-local state, so the
+  compose flag, recipient and subject from an earlier `i n` survived into the
+  next draft. Finalizing then sent the reply as a new mail to that earlier
+  address, under the wrong account's signature. Longstanding; found while
+  reviewing this release.
+- **Starting a second draft stops the first.** Both wrote through the same
+  buffer marker, so whichever finished last won, and the reply shown could
+  belong to a different message than the one the buffer was for. Longstanding;
+  the summary buffer's `r` key is a new way to reach it.
+- **The window configuration is restored correctly after sending.** Finalize
+  now kills the draft buffer after composing rather than before, and mu4e
+  snapshots the window configuration in between, so the snapshot named a
+  buffer about to be killed.
 - **Finalizing a draft no longer destroys it on failure.** It killed the
   draft buffer and then called `mu4e-compose-reply`, which also reads the
   message at point. That worked only when the window behind the draft

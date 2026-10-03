@@ -36,9 +36,6 @@
 (declare-function message-goto-body "message")
 (defvar mu4e-contexts)
 
-;; Variables from mu4e-llm-config (suppress byte-compile warnings)
-
-
 ;;; --- Context Matching ---
 
 (defun mu4e-llm--find-context-for-message (msg)
@@ -76,6 +73,20 @@ Returns the context object, or nil if no match found."
   (setq-local truncate-lines nil)
   (setq-local word-wrap t)
   (visual-line-mode 1))
+
+(defconst mu4e-llm-draft--help-line
+  (concat "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  "
+          "[C-c C-p]olite  [C-c C-n] plainer  [C-c C-b]ullets  "
+          "[C-c C-k]cancel")
+  "Key legend shown under the draft.
+Its opening characters double as `mu4e-llm-draft--end-marker\=', so the two
+must stay in step.")
+
+(defconst mu4e-llm-draft--end-marker "\n\n[C-c"
+  "What marks the end of the editable draft.
+The help line is the only thing below the draft, so its leading newlines and
+first keys are the boundary.  Searched for rather than stored as a marker,
+because the region is rewritten on every streamed chunk.")
 
 ;;; --- Draft Buffer Variables ---
 
@@ -123,10 +134,20 @@ Returns the context object, or nil if no match found."
   "Prepare draft buffer for THREAD with original MSG."
   (let ((buf (mu4e-llm-draft--get-buffer)))
     (with-current-buffer buf
+      ;; The draft buffer is reused, and `erase-buffer' does not clear
+      ;; buffer-locals.  A worker still streaming into it would fight the new
+      ;; one through the same marker, and a compose-mode flag left over from an
+      ;; abandoned `mu4e-llm-draft-compose' would make finalize send this reply
+      ;; as a new mail to that earlier recipient.
+      (when mu4e-llm-draft--worker
+        (mu4e-llm--abort-worker mu4e-llm-draft--worker))
       (let ((inhibit-read-only t))
         (erase-buffer)
         (setq mu4e-llm-draft--thread thread)
         (setq mu4e-llm-draft--original-message msg)
+        (setq mu4e-llm-draft--compose-mode nil)
+        (setq mu4e-llm-draft--recipient nil)
+        (setq mu4e-llm-draft--subject nil)
         ;; Insert summary section
         (let ((summary-start (point)))
           (insert (propertize "Thread Summary\n" 'face 'bold))
@@ -156,17 +177,16 @@ Returns the context object, or nil if no match found."
         (insert mu4e-llm-streaming-indicator)
         ;; Help text at bottom
         (insert "\n\n")
-        (insert (propertize
-                 (concat "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  "
-                         "[C-c C-p]olite  [C-c C-n] plainer  [C-c C-b]ullets  "
-                         "[C-c C-k]cancel")
-                 'face 'shadow))))
+        (insert (propertize mu4e-llm-draft--help-line 'face 'shadow))
+        (setq buffer-read-only t)))
     buf))
 
 (defun mu4e-llm-draft--prepare-compose-buffer (recipient subject instructions)
   "Prepare draft buffer for new compose with RECIPIENT, SUBJECT, and INSTRUCTIONS."
   (let ((buf (mu4e-llm-draft--get-buffer)))
     (with-current-buffer buf
+      (when mu4e-llm-draft--worker
+        (mu4e-llm--abort-worker mu4e-llm-draft--worker))
       (let ((inhibit-read-only t))
         (erase-buffer)
         (setq mu4e-llm-draft--thread nil)
@@ -190,41 +210,43 @@ Returns the context object, or nil if no match found."
         (insert mu4e-llm-streaming-indicator)
         ;; Help text at bottom
         (insert "\n\n")
-        (insert (propertize
-                 (concat "[C-c C-f]inalize  [C-c C-r]efine  [C-c C-s]horten  "
-                         "[C-c C-p]olite  [C-c C-n] plainer  [C-c C-b]ullets  "
-                         "[C-c C-k]cancel")
-                 'face 'shadow))))
+        (insert (propertize mu4e-llm-draft--help-line 'face 'shadow))
+        (setq buffer-read-only t)))
     buf))
 
 (defun mu4e-llm-draft--insert-text (buf text)
   "Insert TEXT at marker position in BUF."
   (when (buffer-live-p buf)
     (with-current-buffer buf
-      (save-excursion
+      (let ((inhibit-read-only t))
+       (save-excursion
         (goto-char mu4e-llm-draft--insert-marker)
         ;; Find and delete to next marker or help text
         (let ((end (save-excursion
-                     (if (search-forward "\n\n[C-c" nil t)
+                     (if (search-forward mu4e-llm-draft--end-marker nil t)
                          (match-beginning 0)
                        (point-max)))))
           (delete-region (point) end))
         ;; Insert new text
         (insert text)
-        (insert mu4e-llm-streaming-indicator)))))
+        (insert mu4e-llm-streaming-indicator))))))
 
 (defun mu4e-llm-draft--finalize-text (buf text)
-  "Finalize draft in BUF with final TEXT."
+  "Finalize draft in BUF with final TEXT.
+Also hands the buffer back to the user: it is read-only while generating,
+because each streamed chunk rewrites the whole draft region."
   (when (buffer-live-p buf)
     (with-current-buffer buf
-      (save-excursion
+      (let ((inhibit-read-only t))
+       (save-excursion
         (goto-char mu4e-llm-draft--insert-marker)
         (let ((end (save-excursion
-                     (if (search-forward "\n\n[C-c" nil t)
+                     (if (search-forward mu4e-llm-draft--end-marker nil t)
                          (match-beginning 0)
                        (point-max)))))
           (delete-region (point) end))
-        (insert text))
+        (insert text)))
+      (setq buffer-read-only nil)
       ;; Move cursor to draft area for editing
       (goto-char mu4e-llm-draft--draft-start))))
 
@@ -238,7 +260,8 @@ Returns the context object, or nil if no match found."
          (user-email (cdr identity))
          (context (mu4e-llm-thread-to-prompt-context thread))
          (extra-instructions (if instructions
-                                 (format "\nAdditional instructions: %s" instructions)
+                                 (format mu4e-llm-draft-instructions-label
+                                         instructions)
                                ""))
          (prompt (mu4e-llm--prompt
                   mu4e-llm-draft-reply-prompt
@@ -291,7 +314,7 @@ Optional RECIPIENT and SUBJECT provide context."
          (user-name (car identity))
          (user-email (cdr identity))
          (recipient-context (if recipient
-                                (format "The recipient is: %s" recipient)
+                                (format mu4e-llm-draft-recipient-label recipient)
                               ""))
          (prompt (mu4e-llm--prompt
                   mu4e-llm-draft-compose-prompt
@@ -342,7 +365,7 @@ Prompts for recipient and subject, then generates the email body."
     (save-excursion
       (goto-char mu4e-llm-draft--draft-start)
       (let ((end (save-excursion
-                   (if (search-forward "\n\n[C-c" nil t)
+                   (if (search-forward mu4e-llm-draft--end-marker nil t)
                        (match-beginning 0)
                      (point-max)))))
         (string-trim (buffer-substring-no-properties (point) end))))))
@@ -354,19 +377,21 @@ Prompts for recipient and subject, then generates the email body."
          (prompt (mu4e-llm--prompt
                   mu4e-llm-draft-refine-prompt
                   `((?i . ,instruction)
-                    (?d . ,(or current-draft ""))))))
+                    (?d . ,current-draft)))))
     ;; Abort previous worker if any
     (when mu4e-llm-draft--worker
       (mu4e-llm--abort-worker mu4e-llm-draft--worker))
     ;; Prepare for new content
-    (save-excursion
+    (let ((inhibit-read-only t))
+     (save-excursion
       (goto-char mu4e-llm-draft--insert-marker)
       (let ((end (save-excursion
-                   (if (search-forward "\n\n[C-c" nil t)
+                   (if (search-forward mu4e-llm-draft--end-marker nil t)
                        (match-beginning 0)
                      (point-max)))))
         (delete-region (point) end))
-      (insert mu4e-llm-streaming-indicator))
+      (insert mu4e-llm-streaming-indicator)))
+    (setq buffer-read-only t)
     ;; Create new worker
     (let ((worker (mu4e-llm--create-worker
                    'refine
@@ -449,6 +474,11 @@ Prompts for recipient and subject, then generates the email body."
         (subject mu4e-llm-draft--subject)
         (msg mu4e-llm-draft--original-message)
         (draft-buffer (current-buffer)))
+    ;; A worker is still writing: the draft ends in the streaming indicator and
+    ;; the text is whatever arrived so far.
+    (when (and mu4e-llm-draft--worker
+               (mu4e-llm--worker-active mu4e-llm-draft--worker))
+      (user-error "Still generating -- wait, or press C-c C-k to cancel"))
     ;; For reply mode, we need the original message
     (when (and (not compose-mode) (not msg))
       (user-error "No original message context"))
@@ -468,10 +498,24 @@ Prompts for recipient and subject, then generates the email body."
     ;;
     ;; The draft buffer is killed after this, never before: if composing
     ;; signals, the draft text must still be there to try again with.
-    (if compose-mode
-        (mu4e-compose-new)
-      (cl-letf (((symbol-function 'mu4e-message-at-point) (lambda (&rest _) msg)))
-        (mu4e-compose-reply)))
+    ;;
+    ;; Step out of the draft's window before composing.  mu4e snapshots the
+    ;; window configuration inside `mu4e--draft\=', and
+    ;; `mu4e-compose-post-restore-window-configuration\=' -- on
+    ;; `mu4e-compose-post-hook\=' by default -- restores it after sending.  A
+    ;; snapshot naming a buffer we are about to kill restores to the wrong
+    ;; place.
+    (let ((win (get-buffer-window draft-buffer)))
+      (when win (switch-to-prev-buffer win)))
+    (condition-case err
+        (if compose-mode
+            (mu4e-compose-new)
+          (cl-letf (((symbol-function 'mu4e-message-at-point) (lambda (&rest _) msg)))
+            (mu4e-compose-reply)))
+      (error
+       ;; Put the draft back in front of the user: it is the only copy.
+       (pop-to-buffer draft-buffer)
+       (signal (car err) (cdr err))))
     (when (buffer-live-p draft-buffer)
       (kill-buffer draft-buffer))
     ;; Wait for compose buffer to be ready

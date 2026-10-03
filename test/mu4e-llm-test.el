@@ -401,7 +401,6 @@ test can assert on the keyword arguments and not only on the content."
                 (lambda (&rest args) (push args ,captured) (car args)))
                ((symbol-function 'llm-chat-streaming)
                 (lambda (&rest _) 'fake-request))
-               ((symbol-function 'pop-to-buffer) (lambda (b &rest _) b))
                ((symbol-function 'pop-to-buffer) (lambda (b &rest _) (set-buffer b) b)))
        ,@body)))
 
@@ -747,7 +746,7 @@ A user who edits a prompt cannot break the call this way."
   "A rendered reply prompt should contain the sender and the thread."
   (let ((rendered (mu4e-llm--prompt
                    mu4e-llm-draft-reply-prompt
-                   '((?n . "Ada") (?e . "ada@example.org") (?p . "")
+                   '((?n . "Ada") (?e . "ada@example.org")
                      (?t . "THREAD-MARKER") (?i . "")))))
     (should (string-match-p "Ada" rendered))
     (should (string-match-p "ada@example.org" rendered))
@@ -833,10 +832,12 @@ Telling the model to write in the user's voice would be wrong there."
       (mu4e-llm-test--capturing-chat-prompt captured
         (mu4e-llm-draft-reply)))
     (should captured)
-    (should (string-match-p "THREAD-MARKER" (car (car captured))))
-    (should (equal mu4e-llm-prompt-voice
-                   (mu4e-llm-test--context-of (car captured))))
-    (kill-buffer mu4e-llm-draft-buffer-name)))
+    (unwind-protect
+        (progn
+          (should (string-match-p "THREAD-MARKER" (car (car captured))))
+          (should (equal mu4e-llm-prompt-voice
+                         (mu4e-llm-test--context-of (car captured)))))
+      (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b)))))
 
 ;;; --- Deletion guards ---
 
@@ -874,6 +875,11 @@ This is the instruction that made every generated reply a bullet list."
          (mu4e-llm-draft-reply)
          (unwind-protect
              (with-current-buffer mu4e-llm-draft-buffer-name
+               ;; The stubbed stream never completes, so the worker would stay
+               ;; active and finalize would rightly refuse. These tests are
+               ;; about a finished draft, so retire it.
+               (when mu4e-llm-draft--worker
+                 (setf (mu4e-llm--worker-active mu4e-llm-draft--worker) nil))
                (setq captured nil)
                ,@body)
            ;; Tolerate an already-dead buffer: finalize kills it on success,
@@ -1129,7 +1135,12 @@ the draft text had already been destroyed."
               ((symbol-function 'run-at-time) (lambda (&rest _) nil)))
       (mu4e-llm-test--in-draft-buffer
         (setq mu4e-llm-draft--original-message 'stored-msg)
-        (mu4e-llm-draft-finalize)
+        ;; Innermost, or the macro's own mu4e-message-at-point stub shadows
+        ;; this one and `asked' can never be set -- which made this assertion
+        ;; vacuous: a finalize that *did* read point still passed.
+        (cl-letf (((symbol-function 'mu4e-message-at-point)
+                   (lambda (&rest _) (setq asked t) (user-error "No message at point"))))
+          (mu4e-llm-draft-finalize))
         (should (eq 'stored-msg replied-to))
         (should-not asked)))))
 
@@ -1143,6 +1154,183 @@ the draft text had already been destroyed."
       (setq mu4e-llm-draft--original-message 'stored-msg)
       (should-error (mu4e-llm-draft-finalize))
       (should (buffer-live-p (get-buffer mu4e-llm-draft-buffer-name))))))
+
+;;; ==========================================================================
+;;; Call-Site Tests
+;;;
+;;; These exist because a mutation pass showed the suite passing with the
+;;; compose placeholder mistyped, with the translate nil guard removed, and
+;;; with the cached summary reverted to display-buffer. A test that renders a
+;;; template by hand proves the template; only entering the call site proves
+;;; the call site.
+;;; ==========================================================================
+
+(ert-deftest mu4e-llm-test-compose-call-site-leaves-no-placeholder ()
+  "Entering the compose path must render every letter its template uses.
+Mistyping one at the call site is silent: `format-spec' with `ignore' leaves
+the placeholder in the prompt and nothing signals."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (unwind-protect
+        (progn
+          (mu4e-llm-test--capturing-chat-prompt captured
+            (mu4e-llm-draft--generate-compose "INSTR-MARKER" "RECIP-MARKER" nil))
+          (let ((prompt (car (car captured))))
+            (should (string-match-p "INSTR-MARKER" prompt))
+            (should (string-match-p "RECIP-MARKER" prompt))
+            (should-not (string-match-p "%[a-z]" prompt))
+            (should (equal mu4e-llm-prompt-voice
+                           (mu4e-llm-test--context-of (car captured))))))
+      (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b)))))
+
+(ert-deftest mu4e-llm-test-reply-call-site-leaves-no-placeholder ()
+  "The same for the reply path, including when no extra instructions were given."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (cl-letf (((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (_m) (mu4e-llm-test--thread-with-message)))
+              ((symbol-function 'mu4e-llm-thread-to-prompt-context)
+               (lambda (_t) "THREAD-MARKER"))
+              ((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg)))
+      (unwind-protect
+          (progn
+            (mu4e-llm-test--capturing-chat-prompt captured
+              (mu4e-llm-draft-reply))
+            (should-not (string-match-p "%[a-z]" (car (car captured)))))
+        (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b))))))
+
+(ert-deftest mu4e-llm-test-translate-nil-subject-leaves-no-placeholder ()
+  "A message with no subject must not put `%u' into the prompt.
+`mu4e-message-field' returns nil for a missing subject, and `format-spec'
+treats nil as missing."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (cl-letf (((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg))
+              ((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (_m)
+                 (let ((th (mu4e-llm-test--thread-with-message "BODY-MARKER")))
+                   (setf (mu4e-llm-thread-message-subject
+                          (car (mu4e-llm-thread-messages th)))
+                         nil)
+                   th))))
+      (unwind-protect
+          (progn
+            (mu4e-llm-test--capturing-chat-prompt captured
+              (mu4e-llm-translate-message "de"))
+            (let ((prompt (car (car captured))))
+              (should (string-match-p "BODY-MARKER" prompt))
+              (should-not (string-match-p "%[a-z]" prompt))))
+        (when-let ((b (get-buffer "*mu4e-llm-translation*"))) (kill-buffer b))))))
+
+(ert-deftest mu4e-llm-test-prompt-coerces-nil-to-empty-string ()
+  "The helper owns the nil rule, so no call site has to remember it."
+  (should (equal "a | b"
+                 (mu4e-llm--prompt "a |%z b" '((?z . nil))))))
+
+(ert-deftest mu4e-llm-test-cached-summary-takes-focus ()
+  "The second `i s' on a thread hits the cached branch, which must also focus."
+  (mu4e-llm-test--with-real-windows
+    (let* ((thread (mu4e-llm-test--thread-with-message))
+           (key (mu4e-llm--cache-key (mu4e-llm-thread-message-id thread)
+                                     (mu4e-llm-thread-message-count thread)))
+           (mu4e-llm--summary-cache (make-hash-table :test 'equal)))
+      (mu4e-llm--cache-set key "cached summary text")
+      (unwind-protect
+          (progn
+            (mu4e-llm--summarize-message 'fake-msg 'standard)
+            (should (equal mu4e-llm-summary-buffer-name (buffer-name))))
+        (when-let ((b (get-buffer mu4e-llm-summary-buffer-name)))
+          (kill-buffer b))))))
+
+;;; ==========================================================================
+;;; Draft Buffer Safety
+;;; ==========================================================================
+
+(ert-deftest mu4e-llm-test-draft-is-read-only-while-generating ()
+  "Each streamed chunk rewrites the draft region, so typing into it would be
+discarded on the next chunk. The buffer stays read-only until the stream ends."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0)
+        (captured nil))
+    (cl-letf (((symbol-function 'mu4e-llm-thread-extract)
+               (lambda (_m) (mu4e-llm-test--thread-with-message)))
+              ((symbol-function 'mu4e-llm-thread-to-prompt-context)
+               (lambda (_t) "ctx"))
+              ((symbol-function 'mu4e-message-at-point) (lambda () 'fake-msg)))
+      (unwind-protect
+          (progn
+            (mu4e-llm-test--capturing-chat-prompt captured
+              (mu4e-llm-draft-reply))
+            (with-current-buffer mu4e-llm-draft-buffer-name
+              (should buffer-read-only)
+              (mu4e-llm-draft--finalize-text (current-buffer) "final text")
+              (should-not buffer-read-only)))
+        (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b))))))
+
+(ert-deftest mu4e-llm-test-finalize-refuses-a-half-written-draft ()
+  "Finalizing mid-stream would send partial text ending in the indicator."
+  (mu4e-llm-test--in-draft-buffer
+    (setq mu4e-llm-draft--original-message 'stored-msg)
+    (setf (mu4e-llm--worker-active mu4e-llm-draft--worker) t)
+    (should-error (mu4e-llm-draft-finalize) :type 'user-error)
+    (should (buffer-live-p (get-buffer mu4e-llm-draft-buffer-name)))))
+
+(ert-deftest mu4e-llm-test-reused-draft-buffer-forgets-compose-mode ()
+  "A reply drafted after an abandoned compose must not inherit its recipient.
+`erase-buffer' does not clear buffer-locals, so finalize would take the
+compose branch and send the reply as a new mail to the earlier address."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0))
+    (cl-letf (((symbol-function 'pop-to-buffer) (lambda (b &rest _) b))
+              ((symbol-function 'mu4e-llm--chat) (lambda (&rest _) nil)))
+      (unwind-protect
+          (progn
+            (mu4e-llm-draft--prepare-compose-buffer "bob@example.org" "Old" "x")
+            (with-current-buffer mu4e-llm-draft-buffer-name
+              (should mu4e-llm-draft--compose-mode)
+              (should (equal "bob@example.org" mu4e-llm-draft--recipient)))
+            (mu4e-llm-draft--prepare-buffer
+             (mu4e-llm-test--thread-with-message) 'alice-msg)
+            (with-current-buffer mu4e-llm-draft-buffer-name
+              (should-not mu4e-llm-draft--compose-mode)
+              (should-not mu4e-llm-draft--recipient)
+              (should-not mu4e-llm-draft--subject)))
+        (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b))))))
+
+(ert-deftest mu4e-llm-test-new-draft-aborts-the-running-one ()
+  "Two workers writing through one buffer marker let the wrong reply win."
+  (let ((mu4e-llm--workers (make-hash-table :test 'equal))
+        (mu4e-llm--worker-counter 0))
+    (cl-letf (((symbol-function 'pop-to-buffer) (lambda (b &rest _) b)))
+      (unwind-protect
+          (let ((first (mu4e-llm--create-worker 'draft nil)))
+            (mu4e-llm-draft--prepare-buffer
+             (mu4e-llm-test--thread-with-message) 'msg-one)
+            (with-current-buffer mu4e-llm-draft-buffer-name
+              (setq mu4e-llm-draft--worker first))
+            (mu4e-llm-draft--prepare-buffer
+             (mu4e-llm-test--thread-with-message) 'msg-two)
+            (should-not (mu4e-llm--worker-active first)))
+        (when-let ((b (get-buffer mu4e-llm-draft-buffer-name))) (kill-buffer b))))))
+
+(ert-deftest mu4e-llm-test-help-lists-every-draft-key ()
+  "The in-Emacs help and the draft keymap must not drift apart."
+  (let ((help (mu4e-llm--help-text)))
+    (dolist (key '("C-c C-r" "C-c C-s" "C-c C-p" "C-c C-n"
+                   "C-c C-b" "C-c C-t" "C-c C-f" "C-c C-k"))
+      (should (string-match-p (regexp-quote key) help)))))
+
+(ert-deftest mu4e-llm-test-empty-voice-sends-no-context ()
+  "An empty system message is not the same as sending none."
+  (let ((mu4e-llm-prompt-voice ""))
+    (should-not (mu4e-llm--voice-for 'draft))))
+
+(ert-deftest mu4e-llm-test-executive-summary-gets-no-voice ()
+  "Executive summaries report someone else's words, like the other summaries."
+  (should-not (mu4e-llm--voice-for 'executive-summary)))
 
 (provide 'mu4e-llm-test)
 ;;; mu4e-llm-test.el ends here

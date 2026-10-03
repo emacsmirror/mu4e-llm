@@ -101,9 +101,12 @@ Keybindings (%s prefix in mu4e):
   ?   Show this help
 
 In draft buffer:
-  C-c C-r   Refine with instruction
+  C-c C-r   Refine with your own instruction
   C-c C-s   Shorten
-  C-c C-p   Make more polite
+  C-c C-p   Warmer
+  C-c C-n   Plainer
+  C-c C-b   Bullets
+  C-c C-t   Show or hide the thread summary
   C-c C-f   Finalize (open in compose)
   C-c C-k   Cancel
 

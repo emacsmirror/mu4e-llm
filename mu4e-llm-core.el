@@ -30,7 +30,7 @@
 (cl-defstruct mu4e-llm--worker
   "Structure representing an active LLM operation."
   id              ; Unique identifier
-  type            ; Operation type: summary, draft, translate, refine
+  type            ; Operation type; `mu4e-llm-operation-models' lists them all
   llm-request     ; The llm.el request object (for cancellation)
   message         ; The mu4e message being processed
   thread-id       ; Thread identifier
@@ -114,8 +114,11 @@ and translating do not: they report what someone else wrote.")
 
 (defun mu4e-llm--voice-for (type)
   "Return the system prompt for operation TYPE, or nil.
-Nil for everything that is not writing an email as the user."
-  (when (memq type mu4e-llm--writing-operations)
+Nil for everything that is not writing an email as the user, and nil for an
+empty voice: sending an empty system message is not the same as sending none."
+  (when (and (memq type mu4e-llm--writing-operations)
+             (stringp mu4e-llm-prompt-voice)
+             (not (string-empty-p mu4e-llm-prompt-voice)))
     mu4e-llm-prompt-voice))
 
 (defun mu4e-llm--reasoning-params-for (type)

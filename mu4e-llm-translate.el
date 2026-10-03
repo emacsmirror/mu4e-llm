@@ -25,9 +25,6 @@
 ;; Forward declarations
 (declare-function mu4e-message-at-point "mu4e-message")
 
-;; Variables from mu4e-llm-config (suppress byte-compile warnings)
-
-
 ;;; --- Translation Buffer Mode ---
 
 (defvar mu4e-llm-translate-mode-map
@@ -153,7 +150,7 @@
   (let* ((buf (mu4e-llm-translate--prepare-buffer target-lang source-type))
          (lang-name (car (rassoc target-lang mu4e-llm-languages)))
          (prompt (mu4e-llm--prompt mu4e-llm-translate-text-prompt
-                                   `((?l . ,lang-name) (?x . ,(or text "")))))
+                                   `((?l . ,lang-name) (?x . ,text))))
          (worker (mu4e-llm--create-worker
                   'translate
                   nil
@@ -186,15 +183,12 @@ Prompt for TARGET-LANG if not specified."
          (last-msg (mu4e-llm-thread-last-message thread))
          (lang (or target-lang (mu4e-llm-translate--select-language)))
          (lang-name (car (rassoc lang mu4e-llm-languages)))
-         ;; `or ""' on each field: a nil counts as missing to `format-spec',
-         ;; which would leave the placeholder itself in the prompt.  A
-         ;; message with no subject is the case that actually happens.
          (prompt (mu4e-llm--prompt
                   mu4e-llm-translate-message-prompt
                   `((?l . ,lang-name)
-                    (?f . ,(or (mu4e-llm-thread-message-from last-msg) ""))
-                    (?u . ,(or (mu4e-llm-thread-message-subject last-msg) ""))
-                    (?b . ,(or (mu4e-llm-thread-message-body last-msg) ""))))))
+                    (?f . ,(mu4e-llm-thread-message-from last-msg))
+                    (?u . ,(mu4e-llm-thread-message-subject last-msg))
+                    (?b . ,(mu4e-llm-thread-message-body last-msg))))))
     (let* ((buf (mu4e-llm-translate--prepare-buffer lang "Message"))
            (worker (mu4e-llm--create-worker
                     'translate

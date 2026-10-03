@@ -50,7 +50,15 @@ How to write:
 - Warm and direct, the way a good colleague writes.  Friendly, not chummy.
 - Contractions are fine.
 - Say the thing.  Do not restate the question before answering it.
+- After the greeting, the first sentence carries the point: the answer, the
+  decision, or the request.  Thanks, if any, come after it and take one clause.
 - Continuous prose, not a list, unless you are asked for a list.
+- End with a short sign-off line such as \"Best regards,\" on its own line.  Do
+  not write a name or a signature block after it; that gets added for you.
+
+When you are revising a draft rather than writing one, these rules apply to the
+text you are asked to change.  Leave everything else word for word, and keep the
+draft in the language it is already written in.
 
 Never write any of these:
 - \"I hope this email finds you well\", or any other opening remark about how
@@ -80,9 +88,13 @@ placeholder TEMPLATE uses but SPEC does not supply is left in place rather
 than signalling, so a user\\='s edited prompt can never break the call.  The
 cost is that a stale placeholder reaches the model as literal text.
 
-Pass an empty string, never nil, for a field that may be absent: nil counts
-as missing and would leave the placeholder showing."
-  (format-spec template spec 'ignore))
+A nil value renders as the empty string.  `format-spec' would treat nil as
+missing and leave the placeholder showing, which is the same silent failure
+by another route, so it is coerced here rather than at every call site."
+  (format-spec template
+               (mapcar (lambda (pair) (cons (car pair) (or (cdr pair) "")))
+                       spec)
+               'ignore))
 
 ;;; --- Drafting ---
 
@@ -98,7 +110,8 @@ The reply is written in org-mode syntax, because it is sent as HTML:
 - [[url][text]] for links
 
 Do NOT include email headers (To, From, Subject) - just the body text.
-Do NOT include a signature - that will be added automatically.
+End with a sign-off line, but no name and no signature block: the signature is
+added for you.
 Start with an appropriate greeting.
 
 EMAIL THREAD:
@@ -123,9 +136,12 @@ Placeholders:
 
 An email has three parts: the greeting, the body, and the sign-off. Apply
 the instruction to the body. Leave the greeting and the sign-off as they
-are, unless the instruction asks for them by name. \"Make it one line\"
-means the body becomes one line, not that the whole email collapses into
-one line.
+are, unless the instruction asks for them by name. Do not add a sign-off
+that is not already there. \"Make it one line\" means the body becomes one
+line, not that the whole email collapses into one line.
+
+Write the result in the same language as the draft below. The instruction
+is in English; that says nothing about what language the email is in.
 
 Change what the instruction asks for and nothing else. Do not rewrite
 sentences you were not asked to touch.
@@ -207,7 +223,8 @@ The email is written in org-mode syntax, because it is sent as HTML:
 - [[url][text]] for links
 
 Do NOT include email headers (To, From, Subject) - just the body text.
-Do NOT include a signature - that will be added automatically.
+End with a sign-off line, but no name and no signature block: the signature is
+added for you.
 Start with an appropriate greeting."
   "Prompt template for composing new emails.
 
@@ -219,6 +236,26 @@ Placeholders:
   %e  the sender\\='s email address
   %i  what to write about
   %r  a line naming the recipient, or empty"
+  :type 'string
+  :group 'mu4e-llm)
+
+;;; --- Labels ---
+;;
+;; Short strings the package wraps around a value before it becomes a
+;; placeholder.  They live here so the claim at the top of this file -- that
+;; nothing else holds prompt text -- is true.
+
+(defcustom mu4e-llm-draft-instructions-label "\nAlso bear this in mind:\n%s"
+  "How extra instructions are introduced in the reply prompt.
+Rendered into `mu4e-llm-draft-reply-prompt' as its %i.  Takes one `format'
+argument, the user\='s instructions."
+  :type 'string
+  :group 'mu4e-llm)
+
+(defcustom mu4e-llm-draft-recipient-label "The recipient is: %s"
+  "How the recipient is introduced in the compose prompt.
+Rendered into `mu4e-llm-draft-compose-prompt' as its %r.  Takes one `format'
+argument, the recipient."
   :type 'string
   :group 'mu4e-llm)
 
