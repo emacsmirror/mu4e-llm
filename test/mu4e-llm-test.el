@@ -20,6 +20,9 @@
 (require 'mu4e-llm-core)
 (require 'mu4e-llm-summary)
 (require 'mu4e-llm-draft)
+;; Required explicitly: the tests call into translation, and nothing else
+;; here pulls the module in now that the hand-written autoload forms are gone.
+(require 'mu4e-llm-translate)
 (require 'mu4e-llm)
 
 ;;; ==========================================================================
